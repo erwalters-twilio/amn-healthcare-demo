@@ -87,10 +87,10 @@ Be warm, professional, and helpful. Ask the candidate about their nursing experi
 Keep responses conversational and under 2-3 sentences.`;
   }
 
-  const { firstName, lastName, email, job_applied, profession, abandonment_step } = profile.traits;
+  const { firstName, lastName, email, job_applied, profession, specialty, discipline, city } = profile.traits;
   const name = firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || null);
 
-  log.info('Building system prompt with name:', name, 'email:', email);
+  log.info('Building system prompt with name:', name, 'email:', email, 'profession:', profession, 'specialty:', specialty);
 
   // Include recent events if available
   let recentActivity = '';
@@ -101,35 +101,52 @@ Keep responses conversational and under 2-3 sentences.`;
 
   const systemPrompt = `You are a healthcare recruiter for AMN Healthcare calling ${name || 'the candidate'}.
 
-Candidate Context:
+Candidate Profile:
 - Name: ${name || 'Unknown'}
 - Email: ${email || 'Unknown'}
 - Phone: ${profile.traits.phone || 'Unknown'}
-- Position Applied: ${job_applied || 'Not specified'}
-- Profession: ${profession || 'Not specified'}
-- Application Status: ${abandonment_step ? `Abandoned at step: ${abandonment_step}` : 'Started application'}${recentActivity}
+- Profession: ${profession || 'Nurse'}
+- Specialty: ${specialty || 'Not specified'}
+- Discipline: ${discipline || 'Not specified'}
+- Location Preference: ${city || 'Not specified'}
+- Position Applied: ${job_applied || 'Not specified'}${recentActivity}
 
-Background:
-The candidate started applying for a position but didn't complete it. Specifically, they need to upload their credentials to proceed. We sent them an RCS message and they replied, showing interest.
+Available Jobs to Recommend (make these sound natural):
+Based on their profile, recommend 2-3 jobs from these examples:
+- Travel Nurse - ICU, Cleveland Clinic Main Campus, $2,400/week, 13-week assignment
+- Staff RN - Emergency Department, University Hospitals, Cleveland, $75k-95k/year
+- Travel Nurse - Med/Surg, MetroHealth System, $2,200/week, 8-week assignment
+- PRN RN - Pediatrics, Akron Children's Hospital, $52/hour, flexible schedule
+- Staff RN - OR, Cleveland Clinic Hillcrest, $80k-100k/year with sign-on bonus
 
 Conversation Flow:
-1. OPENING: Say "Hey ${name ? name.split(' ')[0] : ''}, I noticed that you needed help completing your application. Let me know when you have uploaded your credentials."
+1. OPENING: Greet them warmly by first name and mention you're calling about healthcare opportunities that match their profile.
 
-2. AFTER THEY CONFIRM UPLOAD: Say "Great. Let me take a look at your profile and I can pull up a few jobs in your area that I think you'd be a great fit for."
+2. ASK ABOUT PREFERENCES: Ask what they're looking for - travel or staff position, preferred location (city/region), shift preferences, specialty interests.
 
-3. THEN: Ask them about their preferences - location, shift type, specialty, etc.
+3. RECOMMEND JOBS: Based on their profession (${profession}), specialty (${specialty}), and location preferences, recommend 2-3 specific jobs from the list above. Mention key details like pay, location, and assignment type. Make it conversational, not a list.
 
-4. IF THEY HAVEN'T UPLOADED YET: Offer to help them understand what credentials are needed and how to upload them.
+4. GAUGE INTEREST: After presenting jobs, ask which one sounds most interesting or if they'd like to hear more details about a specific position.
+
+5. TRANSFER TO RECRUITER: As soon as they express interest in a specific job (e.g., "that ICU position sounds good" or "tell me more about the Cleveland Clinic one"), say: "Perfect! Let me connect you with one of our specialized recruiters who can share all the details and help you get started. Hold on just a moment." Then immediately say "TRANSFER_NOW" on a new line by itself.
 
 Instructions:
-- Be conversational and natural
-- Keep responses brief (1-2 sentences max)
-- Stay on topic - this call is specifically about credential upload
+- Be warm, professional, and enthusiastic
+- Keep responses brief (2-3 sentences max)
+- Use their first name naturally throughout the conversation
+- Focus on matching jobs to their stated preferences
 - Don't mention you're an AI
-- If they want to speak to a human recruiter, say you'll have someone call them back
-- Use their first name occasionally to keep it personal
+- Listen for ANY expression of interest in a job and transfer immediately
+- Make job recommendations sound natural and conversational, not like reading a list
 
-Remember: The main goal is to get them to upload their credentials so we can match them with jobs.`;
+Transfer Trigger Phrases (listen for these):
+- "That sounds good/interesting/great"
+- "Tell me more about [job name]"
+- "I'm interested in [job]"
+- "What are the details on [job]"
+- Any positive response to a specific job recommendation
+
+Remember: Your goal is to present relevant opportunities and transfer to a human recruiter when they show interest.`;
 
   log.info('System prompt created with length:', systemPrompt.length);
   return systemPrompt;
@@ -339,12 +356,15 @@ async function handleConversationRelay(ws, callSid) {
                     if (content) {
                       fullResponse += content;
 
-                      // Send token to Twilio
-                      ws.send(JSON.stringify({
-                        type: 'text',
-                        token: content,
-                        last: false,
-                      }));
+                      // Don't send TRANSFER_NOW to the user
+                      if (!content.includes('TRANSFER_NOW')) {
+                        // Send token to Twilio
+                        ws.send(JSON.stringify({
+                          type: 'text',
+                          token: content,
+                          last: false,
+                        }));
+                      }
                     }
                   } catch (e) {
                     // Skip invalid JSON
@@ -361,6 +381,24 @@ async function handleConversationRelay(ws, callSid) {
             }));
 
             log.info('AI responded:', fullResponse);
+
+            // Check if response contains transfer trigger
+            if (fullResponse.includes('TRANSFER_NOW')) {
+              log.info('Transfer trigger detected, ending call');
+              // Remove TRANSFER_NOW from response before adding to history
+              const cleanResponse = fullResponse.replace('TRANSFER_NOW', '').trim();
+              conversationHistory.push({
+                role: 'assistant',
+                content: cleanResponse,
+              });
+
+              // End the call
+              ws.send(JSON.stringify({
+                type: 'end',
+                reason: 'Transferring to recruiter',
+              }));
+              return;
+            }
 
             // Add to conversation history
             conversationHistory.push({
