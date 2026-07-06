@@ -143,6 +143,7 @@ async function handleConversationRelay(ws, callSid) {
           log.info('ConversationRelay setup:', {
             callSid: data.callSid,
             streamSid: data.streamSid,
+            parameters: data.parameters,
           });
 
           // Extract phone from parameters
@@ -152,8 +153,11 @@ async function handleConversationRelay(ws, callSid) {
 
             // Fetch Segment profile
             if (phone) {
+              log.info('Fetching Segment profile for:', phone);
               const profile = await fetchSegmentProfile(phone);
+              log.info('Profile fetched, building system prompt...');
               systemPrompt = buildSystemPrompt(profile);
+              log.info('System prompt built, adding to conversation history');
               conversationHistory.push({
                 role: 'system',
                 content: systemPrompt,
@@ -215,7 +219,7 @@ async function handleConversationRelay(ws, callSid) {
                   last: true,
                 }));
 
-                log.info('AI greeted:', fullResponse);
+                log.info('AI greeted with full response:', fullResponse);
 
                 // Add to conversation history
                 conversationHistory.push({
@@ -225,6 +229,25 @@ async function handleConversationRelay(ws, callSid) {
 
               } catch (error) {
                 log.error('Error generating greeting:', error);
+
+                // Fallback: Send a generic greeting if personalized one fails
+                const fallbackGreeting = profile?.traits?.name
+                  ? `Hey ${profile.traits.name.split(' ')[0]}, thanks for getting back to us about your application. How can I help you today?`
+                  : 'Hey there, thanks for getting back to us. How can I help you today?';
+
+                log.warn('Using fallback greeting:', fallbackGreeting);
+
+                ws.send(JSON.stringify({
+                  type: 'text',
+                  token: fallbackGreeting,
+                  last: true,
+                }));
+
+                // Add fallback to history
+                conversationHistory.push({
+                  role: 'assistant',
+                  content: fallbackGreeting,
+                });
               }
             }
           }
