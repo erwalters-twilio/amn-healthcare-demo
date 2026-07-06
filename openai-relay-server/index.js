@@ -18,11 +18,11 @@ const log = {
   error: (...args) => console.error('[ERROR]', ...args),
 };
 
-// Fetch Segment Profile by phone number
+// Fetch Segment Profile by phone number (using anonymous_id)
 async function fetchSegmentProfile(phone) {
   try {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
-    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/phone:${encodeURIComponent(normalizedPhone)}`;
+    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/anonymous_id:${encodeURIComponent(normalizedPhone)}`;
 
     log.debug('Fetching Segment profile:', url);
 
