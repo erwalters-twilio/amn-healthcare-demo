@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 8080;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SEGMENT_PROFILE_TOKEN = process.env.SEGMENT_PROFILE_TOKEN;
 const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID;
+const SEGMENT_WRITE_KEY = process.env.SEGMENT_WRITE_KEY;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 // Logging helper
@@ -17,6 +18,42 @@ const log = {
   warn: (...args) => console.warn('[WARN]', ...args),
   error: (...args) => console.error('[ERROR]', ...args),
 };
+
+// Send event to Segment
+async function trackSegmentEvent(userId, eventName, properties = {}) {
+  if (!SEGMENT_WRITE_KEY) {
+    log.warn('SEGMENT_WRITE_KEY not set, skipping event tracking');
+    return;
+  }
+
+  try {
+    const payload = {
+      userId: userId,
+      event: eventName,
+      properties: properties,
+      timestamp: new Date().toISOString(),
+    };
+
+    log.info('Tracking Segment event:', eventName, 'for user:', userId);
+
+    const response = await fetch('https://api.segment.io/v1/track', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${SEGMENT_WRITE_KEY}:`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      log.error('Failed to track Segment event:', response.status, await response.text());
+    } else {
+      log.info('Segment event tracked successfully');
+    }
+  } catch (error) {
+    log.error('Error tracking Segment event:', error);
+  }
+}
 
 // Fetch Segment Profile by phone number
 async function fetchSegmentProfile(phone) {
@@ -140,7 +177,7 @@ Conversation Flow:
 
 4. GAUGE INTEREST: After presenting jobs, ask which one sounds most interesting or if they'd like to hear more details about a specific position.
 
-5. TRANSFER TO RECRUITER: As soon as they express interest in a specific job (e.g., "that ICU position sounds good" or "tell me more about the Cleveland Clinic one"), say: "Perfect! Let me connect you with one of our specialized recruiters who can share all the details and help you get started. Hold on just a moment." Then immediately say "TRANSFER_NOW" on a new line by itself.
+5. TRANSFER TO RECRUITER: As soon as they express interest in a specific job (e.g., "that ICU position sounds good" or "tell me more about the Cleveland Clinic one"), say: "Perfect! Let me connect you with one of our specialized recruiters who can share all the details and help you get started. Hold on just a moment." Then on a new line by itself, output exactly: [TRANSFER]
 
 Instructions:
 - Be warm, professional, and enthusiastic
@@ -203,6 +240,7 @@ async function handleConversationRelay(ws, callSid) {
   let conversationHistory = [];
   let systemPrompt = null;
   let phone = null;
+  let userProfile = null;
 
   ws.on('message', async (message) => {
     try {
@@ -233,9 +271,9 @@ async function handleConversationRelay(ws, callSid) {
           // Fetch Segment profile
           if (phone) {
             log.info('Fetching Segment profile for:', phone);
-            const profile = await fetchSegmentProfile(phone);
-            log.info('Profile fetched:', profile ? 'SUCCESS' : 'NOT FOUND');
-            systemPrompt = buildSystemPrompt(profile);
+            userProfile = await fetchSegmentProfile(phone);
+            log.info('Profile fetched:', userProfile ? 'SUCCESS' : 'NOT FOUND');
+            systemPrompt = buildSystemPrompt(userProfile);
             log.info('System prompt built, adding to conversation history');
             conversationHistory.push({
               role: 'system',
@@ -371,8 +409,8 @@ async function handleConversationRelay(ws, callSid) {
                     if (content) {
                       fullResponse += content;
 
-                      // Don't send TRANSFER_NOW to the user
-                      if (!content.includes('TRANSFER_NOW')) {
+                      // Don't send [TRANSFER] marker to the user
+                      if (!content.includes('[TRANSFER]')) {
                         // Send token to Twilio
                         ws.send(JSON.stringify({
                           type: 'text',
@@ -398,14 +436,31 @@ async function handleConversationRelay(ws, callSid) {
             log.info('AI responded:', fullResponse);
 
             // Check if response contains transfer trigger
-            if (fullResponse.includes('TRANSFER_NOW')) {
-              log.info('Transfer trigger detected, ending call');
-              // Remove TRANSFER_NOW from response before adding to history
-              const cleanResponse = fullResponse.replace('TRANSFER_NOW', '').trim();
+            if (fullResponse.includes('[TRANSFER]')) {
+              log.info('Transfer trigger detected, tracking event and ending call');
+
+              // Remove [TRANSFER] from response before adding to history
+              const cleanResponse = fullResponse.replace('[TRANSFER]', '').trim();
               conversationHistory.push({
                 role: 'assistant',
                 content: cleanResponse,
               });
+
+              // Track Segment event
+              if (userProfile && userProfile.traits) {
+                await trackSegmentEvent(
+                  'erwalters@twilio.com', // hardcoded for now, use userProfile.traits.email when dynamic
+                  'Call Transferred to Recruiter',
+                  {
+                    call_sid: callSid,
+                    phone: phone,
+                    profession: userProfile.traits.profession || 'Unknown',
+                    specialty: userProfile.traits.specialty || 'Unknown',
+                    timestamp: new Date().toISOString(),
+                    source: 'ai_voice_agent',
+                  }
+                );
+              }
 
               // End the call
               ws.send(JSON.stringify({
