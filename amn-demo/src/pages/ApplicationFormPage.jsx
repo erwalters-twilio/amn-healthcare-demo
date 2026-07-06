@@ -150,14 +150,13 @@ export default function ApplicationFormPage() {
             <div className="form-row">
               <div className="form-field">
                 <label htmlFor="profession">
-                  Profession <span className="required">*</span>
+                  Profession
                 </label>
                 <select
                   id="profession"
                   name="profession"
                   value={formData.profession}
                   onChange={handleChange}
-                  required
                   className="input"
                 >
                   <option value="">Select...</option>
@@ -169,14 +168,13 @@ export default function ApplicationFormPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="discipline">
-                  Discipline <span className="required">*</span>
+                  Discipline
                 </label>
                 <select
                   id="discipline"
                   name="discipline"
                   value={formData.discipline}
                   onChange={handleChange}
-                  required
                   className="input"
                 >
                   <option value="">Select...</option>
@@ -189,14 +187,13 @@ export default function ApplicationFormPage() {
             <div className="form-row">
               <div className="form-field">
                 <label htmlFor="specialty">
-                  Specialty <span className="required">*</span>
+                  Specialty
                 </label>
                 <select
                   id="specialty"
                   name="specialty"
                   value={formData.specialty}
                   onChange={handleChange}
-                  required
                   className="input"
                 >
                   <option value="">Select...</option>
