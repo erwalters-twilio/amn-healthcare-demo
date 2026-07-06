@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     <ConversationRelay
       url="wss://${wsUrl}"
       dtmfDetection="true"
-      welcomeGreeting="Hello! This is AMN Healthcare. How can I help you today?">
+      welcomeGreeting="">
       <Parameter name="phone" value="${phone}" />
       <Parameter name="source" value="rcs_reply" />
       <Parameter name="timestamp" value="${new Date().toISOString()}" />
