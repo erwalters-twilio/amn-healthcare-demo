@@ -10,8 +10,6 @@ const SEGMENT_PROFILE_TOKEN = process.env.SEGMENT_PROFILE_TOKEN;
 const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
-const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?model=gpt-realtime-2';
-
 // Logging helper
 const log = {
   debug: (...args) => LOG_LEVEL === 'debug' && console.log('[DEBUG]', ...args),
@@ -23,9 +21,7 @@ const log = {
 // Fetch Segment Profile by phone number
 async function fetchSegmentProfile(phone) {
   try {
-    // Normalize phone to E.164 format (remove spaces, dashes)
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
-
     const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/phone:${encodeURIComponent(normalizedPhone)}`;
 
     log.debug('Fetching Segment profile:', url);
@@ -56,12 +52,14 @@ async function fetchSegmentProfile(phone) {
   }
 }
 
-// Build AI system instructions from Segment profile
-function buildSystemInstructions(profile) {
+// Build system prompt from Segment profile
+function buildSystemPrompt(profile) {
   if (!profile || !profile.traits) {
     return `You are a healthcare recruiter for AMN Healthcare.
 
-Be warm, professional, and helpful. Ask the candidate about their nursing experience and what positions they're interested in.`;
+Be warm, professional, and helpful. Ask the candidate about their nursing experience and what positions they're interested in.
+
+Keep responses conversational and under 2-3 sentences.`;
   }
 
   const { name, job_applied, profession, abandonment_step } = profile.traits;
@@ -87,7 +85,7 @@ Your Goal:
 
 Instructions:
 - Be conversational and natural
-- Keep responses under 30 seconds
+- Keep responses under 2-3 sentences
 - Listen actively to their questions
 - Don't mention you're an AI unless directly asked
 - If they want to speak to a human recruiter, offer to schedule a callback
@@ -96,161 +94,180 @@ Instructions:
 Remember: You're here to help them, not pressure them. Make this a positive experience.`;
 }
 
-// Handle Twilio → OpenAI relay for a single call
-async function handleTwilioConnection(twilioWs, callSid) {
-  log.info(`New Twilio connection: ${callSid}`);
+// Call OpenAI ChatCompletion API
+async function callOpenAI(messages) {
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 150,
+        stream: true,
+      }),
+    });
 
-  let openaiWs = null;
-  let streamSid = null;
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    return response.body;
+  } catch (error) {
+    log.error('OpenAI API error:', error);
+    throw error;
+  }
+}
+
+// Handle ConversationRelay WebSocket connection
+async function handleConversationRelay(ws, callSid) {
+  log.info(`New ConversationRelay connection: ${callSid}`);
+
+  let conversationHistory = [];
+  let systemPrompt = null;
   let phone = null;
-  let profile = null;
 
-  // Buffer for OpenAI audio responses
-  const audioBuffer = [];
-  let isOpenAIReady = false;
-
-  twilioWs.on('message', async (message) => {
+  ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      log.debug('Twilio message:', data.event);
+      log.debug('Received message:', data.type);
 
-      switch (data.event) {
-        case 'start':
-          streamSid = data.streamSid;
-          phone = data.start.customParameters?.phone;
-
-          log.info('Call started:', { streamSid, phone, callSid });
-
-          // Fetch Segment profile
-          if (phone) {
-            profile = await fetchSegmentProfile(phone);
-          }
-
-          // Connect to OpenAI Realtime API
-          openaiWs = new WebSocket(OPENAI_REALTIME_URL, {
-            headers: {
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-              'OpenAI-Beta': 'realtime=v1',
-            },
+      switch (data.type) {
+        case 'setup':
+          log.info('ConversationRelay setup:', {
+            callSid: data.callSid,
+            streamSid: data.streamSid,
           });
 
-          openaiWs.on('open', () => {
-            log.info('Connected to OpenAI Realtime API');
+          // Extract phone from parameters
+          if (data.parameters) {
+            phone = data.parameters.phone;
+            log.info('Phone number from parameters:', phone);
 
-            // Configure session with system instructions
-            const sessionConfig = {
-              type: 'session.update',
-              session: {
-                modalities: ['text', 'audio'],
-                instructions: buildSystemInstructions(profile),
-                voice: 'alloy',
-                input_audio_format: 'g711_ulaw',
-                output_audio_format: 'g711_ulaw',
-                input_audio_transcription: {
-                  model: 'whisper-1',
-                },
-                turn_detection: {
-                  type: 'server_vad',
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
-                },
-              },
-            };
-
-            openaiWs.send(JSON.stringify(sessionConfig));
-            log.debug('Session configured with profile context');
-
-            isOpenAIReady = true;
-
-            // Send any buffered audio
-            if (audioBuffer.length > 0) {
-              log.debug(`Sending ${audioBuffer.length} buffered audio chunks`);
-              audioBuffer.forEach(chunk => openaiWs.send(chunk));
-              audioBuffer.length = 0;
-            }
-          });
-
-          openaiWs.on('message', (message) => {
-            try {
-              const data = JSON.parse(message);
-              log.debug('OpenAI message:', data.type);
-
-              // Send audio back to Twilio
-              if (data.type === 'response.audio.delta' && data.delta) {
-                const audioMessage = {
-                  event: 'media',
-                  streamSid: streamSid,
-                  media: {
-                    payload: data.delta,
-                  },
-                };
-                twilioWs.send(JSON.stringify(audioMessage));
-              }
-
-              // Log transcriptions for debugging
-              if (data.type === 'conversation.item.input_audio_transcription.completed') {
-                log.info('User said:', data.transcript);
-              }
-
-              if (data.type === 'response.audio_transcript.done') {
-                log.info('AI said:', data.transcript);
-              }
-            } catch (error) {
-              log.error('Error processing OpenAI message:', error);
-            }
-          });
-
-          openaiWs.on('error', (error) => {
-            log.error('OpenAI WebSocket error:', error);
-          });
-
-          openaiWs.on('close', () => {
-            log.info('OpenAI connection closed');
-          });
-          break;
-
-        case 'media':
-          // Forward audio from Twilio to OpenAI
-          if (data.media && data.media.payload) {
-            const audioMessage = {
-              type: 'input_audio_buffer.append',
-              audio: data.media.payload,
-            };
-
-            if (openaiWs && openaiWs.readyState === WebSocket.OPEN && isOpenAIReady) {
-              openaiWs.send(JSON.stringify(audioMessage));
-            } else {
-              // Buffer audio until OpenAI is ready
-              audioBuffer.push(JSON.stringify(audioMessage));
+            // Fetch Segment profile
+            if (phone) {
+              const profile = await fetchSegmentProfile(phone);
+              systemPrompt = buildSystemPrompt(profile);
+              conversationHistory.push({
+                role: 'system',
+                content: systemPrompt,
+              });
             }
           }
           break;
 
-        case 'stop':
-          log.info('Call ended:', { streamSid, callSid });
-          if (openaiWs) {
-            openaiWs.close();
+        case 'prompt':
+          // User spoke - transcript in data.voicePrompt
+          const userMessage = data.voicePrompt;
+          log.info('User said:', userMessage);
+
+          // Add to conversation history
+          conversationHistory.push({
+            role: 'user',
+            content: userMessage,
+          });
+
+          // Get response from OpenAI (streaming)
+          try {
+            const stream = await callOpenAI(conversationHistory);
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+
+            let fullResponse = '';
+            let buffer = '';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop(); // Keep incomplete line in buffer
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') continue;
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    const content = parsed.choices?.[0]?.delta?.content;
+
+                    if (content) {
+                      fullResponse += content;
+
+                      // Send token to Twilio
+                      ws.send(JSON.stringify({
+                        type: 'text',
+                        token: content,
+                        last: false,
+                      }));
+                    }
+                  } catch (e) {
+                    // Skip invalid JSON
+                  }
+                }
+              }
+            }
+
+            // Send final message
+            ws.send(JSON.stringify({
+              type: 'text',
+              token: '',
+              last: true,
+            }));
+
+            log.info('AI responded:', fullResponse);
+
+            // Add to conversation history
+            conversationHistory.push({
+              role: 'assistant',
+              content: fullResponse,
+            });
+
+          } catch (error) {
+            log.error('Error getting OpenAI response:', error);
+
+            // Send error response
+            ws.send(JSON.stringify({
+              type: 'text',
+              token: "I'm having trouble connecting right now. Let me transfer you to a human recruiter.",
+              last: true,
+            }));
           }
+          break;
+
+        case 'interrupt':
+          log.info('User interrupted');
+          // User interrupted - stop current TTS
+          break;
+
+        case 'dtmf':
+          log.info('DTMF received:', data.digit);
+          break;
+
+        case 'error':
+          log.error('ConversationRelay error:', data);
           break;
 
         default:
-          log.debug('Unhandled Twilio event:', data.event);
+          log.debug('Unhandled message type:', data.type);
       }
     } catch (error) {
-      log.error('Error processing Twilio message:', error);
+      log.error('Error processing message:', error);
     }
   });
 
-  twilioWs.on('close', () => {
-    log.info('Twilio connection closed:', callSid);
-    if (openaiWs) {
-      openaiWs.close();
-    }
+  ws.on('close', () => {
+    log.info('ConversationRelay connection closed:', callSid);
   });
 
-  twilioWs.on('error', (error) => {
-    log.error('Twilio WebSocket error:', error);
+  ws.on('error', (error) => {
+    log.error('WebSocket error:', error);
   });
 }
 
@@ -275,11 +292,11 @@ wss.on('connection', (ws, req) => {
     url: req.url,
     headers: req.headers,
   });
-  handleTwilioConnection(ws, callSid);
+  handleConversationRelay(ws, callSid);
 });
 
 server.listen(PORT, () => {
-  log.info(`OpenAI Realtime Relay server running on port ${PORT}`);
+  log.info(`ConversationRelay server running on port ${PORT}`);
   log.info(`WebSocket endpoint: ws://localhost:${PORT}/`);
   log.info(`Health check: http://localhost:${PORT}/health`);
 

@@ -1,8 +1,8 @@
 /**
- * TwiML Endpoint for Conversation Relay
+ * TwiML Endpoint for ConversationRelay
  *
  * This endpoint is called by Twilio when initiating a voice call.
- * It returns TwiML that connects the call to an AI agent via Conversation Relay.
+ * It returns TwiML that connects the call to AI via ConversationRelay.
  *
  * Called by: Segment Journey → Twilio Voice API → This endpoint
  *
@@ -20,26 +20,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Phone number required' });
     }
 
-    console.log('Generating TwiML for Conversation Relay:', { phone });
+    console.log('Generating TwiML for ConversationRelay:', { phone });
 
-    // AI WebSocket URL - this is where your AI agent listens
-    // Options:
-    // 1. Twilio AI Assistant: wss://ai-assistant.twilio.com/v1/YOUR_ASSISTANT_ID
-    // 2. OpenAI Realtime Proxy: wss://your-server.com/openai-relay
-    // 3. Custom AI: wss://your-server.com/voice
+    // WebSocket URL for ConversationRelay server
     const AI_WEBSOCKET_URL = process.env.AI_WEBSOCKET_URL;
 
     if (!AI_WEBSOCKET_URL) {
       throw new Error('AI_WEBSOCKET_URL environment variable not set');
     }
 
-    // Generate TwiML with Conversation Relay
+    // Generate TwiML with ConversationRelay
+    // Note: Remove wss:// prefix - Twilio adds it automatically
+    const wsUrl = AI_WEBSOCKET_URL.replace('wss://', '').replace('ws://', '');
+
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <ConversationRelay
-      url="${AI_WEBSOCKET_URL}"
-      dtmfDetection="true">
+      url="wss://${wsUrl}"
+      dtmfDetection="true"
+      welcomeGreeting="Hello! This is AMN Healthcare. How can I help you today?">
       <Parameter name="phone" value="${phone}" />
       <Parameter name="source" value="rcs_reply" />
       <Parameter name="timestamp" value="${new Date().toISOString()}" />
