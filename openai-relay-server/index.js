@@ -87,7 +87,8 @@ Be warm, professional, and helpful. Ask the candidate about their nursing experi
 Keep responses conversational and under 2-3 sentences.`;
   }
 
-  const { name, email, job_applied, profession, abandonment_step } = profile.traits;
+  const { firstName, lastName, email, job_applied, profession, abandonment_step } = profile.traits;
+  const name = firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || null);
 
   log.info('Building system prompt with name:', name, 'email:', email);
 
