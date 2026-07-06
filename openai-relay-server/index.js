@@ -24,7 +24,9 @@ async function fetchSegmentProfile(phone) {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
     const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/anonymous_id:${encodeURIComponent(normalizedPhone)}`;
 
-    log.debug('Fetching Segment profile:', url);
+    log.info('Fetching Segment profile from URL:', url);
+    log.info('Using space ID:', SEGMENT_SPACE_ID);
+    log.info('Auth token present:', !!SEGMENT_PROFILE_TOKEN);
 
     const response = await fetch(url, {
       headers: {
