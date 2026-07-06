@@ -380,6 +380,9 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
   const callSid = req.headers['x-twilio-call-sid'] || 'unknown';
+  log.info('='.repeat(60));
+  log.info('NEW WEBSOCKET CONNECTION ESTABLISHED');
+  log.info('='.repeat(60));
   log.info('WebSocket connection received:', {
     callSid,
     url: req.url,
