@@ -158,6 +158,74 @@ async function handleConversationRelay(ws, callSid) {
                 role: 'system',
                 content: systemPrompt,
               });
+
+              // Proactively greet the user
+              log.info('Generating proactive greeting...');
+
+              // Add a user message to trigger the greeting
+              conversationHistory.push({
+                role: 'user',
+                content: 'The call just connected. Greet me now using the opening line from your instructions.',
+              });
+
+              try {
+                const stream = await callOpenAI(conversationHistory);
+                const reader = stream.getReader();
+                const decoder = new TextDecoder();
+
+                let fullResponse = '';
+                let buffer = '';
+
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop();
+
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const data = line.slice(6);
+                      if (data === '[DONE]') continue;
+
+                      try {
+                        const parsed = JSON.parse(data);
+                        const content = parsed.choices?.[0]?.delta?.content;
+
+                        if (content) {
+                          fullResponse += content;
+                          ws.send(JSON.stringify({
+                            type: 'text',
+                            token: content,
+                            last: false,
+                          }));
+                        }
+                      } catch (e) {
+                        // Skip invalid JSON
+                      }
+                    }
+                  }
+                }
+
+                // Send final message
+                ws.send(JSON.stringify({
+                  type: 'text',
+                  token: '',
+                  last: true,
+                }));
+
+                log.info('AI greeted:', fullResponse);
+
+                // Add to conversation history
+                conversationHistory.push({
+                  role: 'assistant',
+                  content: fullResponse,
+                });
+
+              } catch (error) {
+                log.error('Error generating greeting:', error);
+              }
             }
           }
           break;
