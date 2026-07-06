@@ -136,7 +136,8 @@ async function handleConversationRelay(ws, callSid) {
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      log.debug('Received message:', data.type);
+      log.info('Received message type:', data.type);
+      log.info('Full message data:', JSON.stringify(data, null, 2));
 
       switch (data.type) {
         case 'setup':
