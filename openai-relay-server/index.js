@@ -270,6 +270,11 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
   const callSid = req.headers['x-twilio-call-sid'] || 'unknown';
+  log.info('WebSocket connection received:', {
+    callSid,
+    url: req.url,
+    headers: req.headers,
+  });
   handleTwilioConnection(ws, callSid);
 });
 
