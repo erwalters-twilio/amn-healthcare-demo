@@ -14,6 +14,8 @@ export default function ApplicationFormPage() {
     phone: '',
     firstName: '',
     lastName: '',
+    city: '',
+    zipCode: '',
     profession: '',
     discipline: '',
     specialty: '',
@@ -112,6 +114,34 @@ export default function ApplicationFormPage() {
                   value={formData.lastName}
                   onChange={handleChange}
                   required
+                  className="input"
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-field">
+                <label htmlFor="city">City</label>
+                <input
+                  type="text"
+                  id="city"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  placeholder="City"
+                  className="input"
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="zipCode">Zip Code</label>
+                <input
+                  type="text"
+                  id="zipCode"
+                  name="zipCode"
+                  value={formData.zipCode}
+                  onChange={handleChange}
+                  placeholder="12345"
+                  maxLength="5"
+                  pattern="[0-9]{5}"
                   className="input"
                 />
               </div>
