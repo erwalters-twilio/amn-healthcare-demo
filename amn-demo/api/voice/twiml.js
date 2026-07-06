@@ -39,8 +39,6 @@ export default async function handler(req, res) {
   <Connect>
     <ConversationRelay
       url="${AI_WEBSOCKET_URL}"
-      voice="Polly.Joanna"
-      language="en-US"
       dtmfDetection="true">
       <Parameter name="phone" value="${phone}" />
       <Parameter name="source" value="rcs_reply" />
