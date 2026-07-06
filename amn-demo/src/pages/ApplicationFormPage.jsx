@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { trackClick } from '../utils/analytics';
+import { trackClick, trackIdentify } from '../utils/analytics';
 import Button from '../components/Button';
 import './ApplicationFormPage.css';
 
@@ -33,6 +33,7 @@ export default function ApplicationFormPage() {
     e.preventDefault();
     if (agreedToTerms) {
       trackClick('Apply Now (form)', '/documents', '/application');
+      trackIdentify(formData);
       navigate('/documents', { state: { formData } });
     }
   };
