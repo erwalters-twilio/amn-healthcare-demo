@@ -67,6 +67,8 @@ async function fetchSegmentProfile(phone) {
     };
 
     log.info('Profile assembled successfully');
+    log.info('Profile traits:', JSON.stringify(profile.traits, null, 2));
+    log.info('Profile has', profile.events.length, 'events');
 
     return profile;
   } catch (error) {
@@ -87,6 +89,8 @@ Keep responses conversational and under 2-3 sentences.`;
 
   const { name, email, job_applied, profession, abandonment_step } = profile.traits;
 
+  log.info('Building system prompt with name:', name, 'email:', email);
+
   // Include recent events if available
   let recentActivity = '';
   if (profile.events && profile.events.length > 0) {
@@ -94,7 +98,7 @@ Keep responses conversational and under 2-3 sentences.`;
     recentActivity = `\n\nRecent Activity:\n${recentEvents}`;
   }
 
-  return `You are a healthcare recruiter for AMN Healthcare calling ${name || 'the candidate'}.
+  const systemPrompt = `You are a healthcare recruiter for AMN Healthcare calling ${name || 'the candidate'}.
 
 Candidate Context:
 - Name: ${name || 'Unknown'}
@@ -125,6 +129,9 @@ Instructions:
 - Use their first name occasionally to keep it personal
 
 Remember: The main goal is to get them to upload their credentials so we can match them with jobs.`;
+
+  log.info('System prompt created with length:', systemPrompt.length);
+  return systemPrompt;
 }
 
 // Call OpenAI ChatCompletion API
