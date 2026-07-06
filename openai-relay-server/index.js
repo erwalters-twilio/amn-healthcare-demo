@@ -148,9 +148,16 @@ async function handleConversationRelay(ws, callSid) {
             direction: data.direction,
           });
 
-          // Extract phone from setup message 'from' field
-          phone = data.from;
-          log.info('Phone number from setup.from:', phone);
+          // Extract phone number - for outbound calls, use 'to' (the candidate being called)
+          // Also check customParameters.phone as fallback
+          phone = data.direction === 'outbound-api' ? data.to : data.from;
+
+          // Or use customParameters if available
+          if (data.customParameters?.phone) {
+            phone = data.customParameters.phone;
+          }
+
+          log.info('Phone number extracted:', phone, 'from setup.' + (data.direction === 'outbound-api' ? 'to' : 'from'), 'Direction:', data.direction);
 
           // Fetch Segment profile
           if (phone) {
