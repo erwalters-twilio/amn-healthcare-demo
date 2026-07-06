@@ -22,8 +22,9 @@ const log = {
 async function fetchSegmentProfile(phone) {
   try {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
-    // Don't encode the phone - Segment expects the literal + character
-    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/anonymous_id:${normalizedPhone}`;
+    // URL encode the entire identifier portion (anonymous_id:+phone)
+    const identifier = encodeURIComponent(`anonymous_id:${normalizedPhone}`);
+    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
 
     log.info('Fetching Segment profile from URL:', url);
     log.info('Using space ID:', SEGMENT_SPACE_ID);
