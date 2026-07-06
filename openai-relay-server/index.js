@@ -22,22 +22,41 @@ const log = {
 async function fetchSegmentProfile(phone) {
   try {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
-    // URL encode the entire identifier portion (anonymous_id:+phone)
-    const identifier = encodeURIComponent(`anonymous_id:${normalizedPhone}`);
-    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
 
-    log.info('Fetching Segment profile from URL:', url);
+    // Try multiple identifier formats
+    const identifiers = [
+      `phone:${normalizedPhone}`,
+      `anonymous_id:${normalizedPhone}`,
+      encodeURIComponent(`anonymous_id:${normalizedPhone}`),
+    ];
+
+    log.info('Trying to fetch Segment profile for:', normalizedPhone);
     log.info('Using space ID:', SEGMENT_SPACE_ID);
     log.info('Auth token present:', !!SEGMENT_PROFILE_TOKEN);
 
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    let response = null;
+    let url = null;
 
-    if (!response.ok) {
+    for (const identifier of identifiers) {
+      url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
+      log.info('Trying URL:', url);
+
+      response = await fetch(url, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        log.info('✓ Profile found with identifier format:', identifier);
+        break;
+      } else {
+        log.warn(`✗ Failed with ${identifier}: ${response.status}`);
+      }
+    }
+
+    if (!response || !response.ok) {
       log.warn(`Segment profile not found for ${normalizedPhone}: ${response.status}`);
       return null;
     }
