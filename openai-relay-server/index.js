@@ -24,11 +24,11 @@ async function fetchSegmentProfile(phone) {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
 
     // Per Segment docs, need to:
-    // 1. Use phone_number: (not phone:)
+    // 1. Use anonymous_id: with phone as the value
     // 2. Replace + with %2B
     // 3. Add /traits endpoint
     const encodedPhone = normalizedPhone.replace('+', '%2B');
-    const identifier = `phone_number:${encodedPhone}`;
+    const identifier = `anonymous_id:${encodedPhone}`;
     const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}/traits`;
 
     log.info('Fetching Segment profile for:', normalizedPhone);
