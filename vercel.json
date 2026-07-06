@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd amn-demo && npm run build",
+  "outputDirectory": "amn-demo/dist",
+  "installCommand": "cd amn-demo && npm install",
+  "framework": "vite"
+}

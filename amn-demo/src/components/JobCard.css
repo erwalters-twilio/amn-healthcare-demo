@@ -1,0 +1,102 @@
+.job-card {
+  background: var(--amn-white);
+  border: 1px solid var(--amn-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+  display: block;
+  color: var(--amn-text-dark);
+}
+
+.job-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.job-badges {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-green {
+  background-color: var(--amn-success-green);
+  color: var(--amn-white);
+}
+
+.badge-teal {
+  background-color: #00A8B0;
+  color: var(--amn-white);
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.job-title {
+  font-size: 1.25rem;
+  color: var(--amn-navy);
+  margin: 0;
+  flex: 1;
+}
+
+.job-favorite {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--amn-border);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.job-favorite:hover {
+  color: #ff6b6b;
+}
+
+.job-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.job-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--amn-text-dark);
+}
+
+.job-detail .icon {
+  font-size: 1rem;
+}
+
+.job-pay {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--amn-success-green);
+}
+
+@media (max-width: 768px) {
+  .job-card {
+    padding: 1rem;
+  }
+
+  .job-title {
+    font-size: 1.1rem;
+  }
+}

@@ -1,0 +1,209 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--amn-white);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-top {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--amn-border);
+}
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo img {
+  height: 50px;
+  display: block;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.header-link {
+  color: var(--amn-text-dark);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.header-btn {
+  background-color: var(--amn-primary-blue);
+  color: var(--amn-white);
+  padding: 0.6rem 1.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.header-btn:hover {
+  opacity: 0.9;
+}
+
+.header-nav {
+  background-color: var(--amn-navy);
+}
+
+.nav-menu {
+  list-style: none;
+  display: flex;
+  gap: 2rem;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-link {
+  display: block;
+  color: var(--amn-white);
+  padding: 1rem 0;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.nav-link:hover {
+  opacity: 0.8;
+}
+
+.job-seekers-dropdown {
+  position: absolute;
+  top: 100%;
+  left: -2rem;
+  width: 600px;
+  background: var(--amn-white);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  z-index: 1000;
+}
+
+.dropdown-content {
+  display: flex;
+}
+
+.dropdown-categories {
+  background-color: var(--amn-navy);
+  padding: 1.5rem 1rem;
+  border-radius: 4px 0 0 4px;
+  min-width: 150px;
+}
+
+.category-item {
+  color: var(--amn-white);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background-color 0.2s ease;
+}
+
+.category-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.category-item.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  font-weight: 600;
+}
+
+.dropdown-main {
+  flex: 1;
+  padding: 2rem;
+}
+
+.dropdown-main h3 {
+  margin: 0 0 1rem 0;
+  color: var(--amn-navy);
+  font-size: 1.5rem;
+}
+
+.dropdown-main p {
+  margin-bottom: 1rem;
+  color: var(--amn-text-dark);
+  line-height: 1.6;
+}
+
+.dropdown-link {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  color: var(--amn-primary-blue);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+}
+
+.dropdown-link:hover {
+  border-bottom-color: var(--amn-primary-blue);
+}
+
+.dropdown-actions {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--amn-border);
+}
+
+.action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--amn-text-dark);
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.action-item:hover {
+  background-color: var(--amn-light-gray);
+}
+
+.action-icon {
+  font-size: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .header-actions {
+    gap: 1rem;
+  }
+
+  .header-link {
+    display: none;
+  }
+
+  .nav-menu {
+    overflow-x: auto;
+    gap: 1rem;
+  }
+
+  .job-seekers-dropdown {
+    width: 90vw;
+    left: -1rem;
+  }
+
+  .dropdown-content {
+    flex-direction: column;
+  }
+
+  .dropdown-categories {
+    display: flex;
+    overflow-x: auto;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .category-item {
+    white-space: nowrap;
+  }
+}

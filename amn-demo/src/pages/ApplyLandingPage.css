@@ -1,0 +1,166 @@
+.apply-landing-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl) var(--spacing-md);
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: calc(100vh - 200px);
+}
+
+.apply-content {
+  max-width: 1200px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 200px 1fr 200px;
+  gap: 2rem;
+  align-items: center;
+}
+
+.apply-form-container {
+  background: var(--amn-white);
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.apply-form-container h1 {
+  margin-bottom: 1rem;
+  font-size: 2rem;
+  color: var(--amn-navy);
+}
+
+.subtitle {
+  color: var(--amn-text-dark);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.form-intro {
+  font-weight: 600;
+  color: var(--amn-navy);
+  margin-bottom: 1.5rem;
+}
+
+.apply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--amn-navy);
+}
+
+.required {
+  color: #ff6b6b;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--amn-border);
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--amn-primary-blue);
+}
+
+.decorative-images {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.decorative-images-right {
+  align-items: flex-end;
+}
+
+.image-card {
+  transform-origin: center;
+  animation: float 6s ease-in-out infinite;
+}
+
+.image-card-1 {
+  animation-delay: 0s;
+  transform: rotate(-5deg);
+}
+
+.image-card-2 {
+  animation-delay: 1s;
+  transform: rotate(5deg);
+}
+
+.image-card-3 {
+  animation-delay: 2s;
+  transform: rotate(-7deg);
+}
+
+.image-card-4 {
+  animation-delay: 3s;
+  transform: rotate(7deg);
+}
+
+.polaroid {
+  background: var(--amn-white);
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  width: 180px;
+}
+
+.polaroid-image {
+  width: 100%;
+  height: 120px;
+  border-radius: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.polaroid-label {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--amn-navy);
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(var(--rotate, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--rotate, 0deg));
+  }
+}
+
+@media (max-width: 968px) {
+  .apply-content {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .decorative-images {
+    display: none;
+  }
+
+  .apply-form-container {
+    padding: 2rem;
+  }
+
+  .apply-form-container h1 {
+    font-size: 1.5rem;
+  }
+}
