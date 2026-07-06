@@ -130,3 +130,29 @@ export const trackAbandonment = (formData) => {
 };
 
 export const getAnalytics = () => analytics;
+
+export const trackIdentify = (formData) => {
+  if (!analytics) {
+    console.log('[Analytics Debug] Identify:', formData);
+    return;
+  }
+
+  const normalizedPhone = normalizePhoneNumber(formData.phone);
+  const timestampData = getTimestampData();
+
+  analytics.identify(formData.email, {
+    email: formData.email,
+    firstName: formData.firstName,
+    lastName: formData.lastName,
+    phone: normalizedPhone,
+    profession: formData.profession,
+    discipline: formData.discipline,
+    specialty: formData.specialty,
+    otherSpecialty: formData.otherSpecialty,
+    city: formData.city,
+    zipCode: formData.zipCode,
+    ...timestampData,
+  });
+
+  console.log('[Segment] Identify call sent for:', formData.email);
+};
