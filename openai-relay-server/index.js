@@ -21,45 +21,52 @@ const log = {
 // Fetch Segment Profile by phone number
 async function fetchSegmentProfile(phone) {
   try {
-    const normalizedPhone = phone.replace(/[^\d+]/g, '');
+    // HARDCODED TEST: Use user_id for Eric
+    const identifier = `user_id:erwalters@twilio.com`;
+    const baseUrl = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
 
-    // Per Segment docs, need to:
-    // 1. Use anonymous_id: with phone as the value
-    // 2. Replace + with %2B
-    // 3. Add /traits endpoint
-    const encodedPhone = normalizedPhone.replace('+', '%2B');
-    const identifier = `anonymous_id:${encodedPhone}`;
-    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}/traits`;
-
-    log.info('Fetching Segment profile for:', normalizedPhone);
-    log.info('URL:', url);
+    log.info('Fetching Segment profile for user_id: erwalters@twilio.com');
+    log.info('Base URL:', baseUrl);
     log.info('Using space ID:', SEGMENT_SPACE_ID);
     log.info('Auth token present:', !!SEGMENT_PROFILE_TOKEN);
 
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const authHeader = {
+      'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
+      'Content-Type': 'application/json',
+    };
 
-    if (!response.ok) {
-      log.warn(`Segment profile not found for ${normalizedPhone}: ${response.status}`);
+    // Fetch traits
+    const traitsUrl = `${baseUrl}/traits`;
+    log.info('Fetching traits from:', traitsUrl);
+    const traitsResponse = await fetch(traitsUrl, { headers: authHeader });
+
+    if (!traitsResponse.ok) {
+      log.warn(`Segment traits not found: ${traitsResponse.status}`);
       return null;
     }
 
-    const data = await response.json();
+    const traitsData = await traitsResponse.json();
+    log.info('Traits fetched:', JSON.stringify(traitsData, null, 2));
 
-    // Profile API returns traits directly in the response
+    // Fetch events
+    const eventsUrl = `${baseUrl}/events`;
+    log.info('Fetching events from:', eventsUrl);
+    const eventsResponse = await fetch(eventsUrl, { headers: authHeader });
+
+    let eventsData = null;
+    if (eventsResponse.ok) {
+      eventsData = await eventsResponse.json();
+      log.info('Events fetched:', JSON.stringify(eventsData, null, 2));
+    } else {
+      log.warn(`Events not found: ${eventsResponse.status}`);
+    }
+
     const profile = {
-      traits: data.traits || data
+      traits: traitsData.traits || traitsData,
+      events: eventsData?.data || []
     };
 
-    log.info('Segment profile fetched successfully:', {
-      phone: normalizedPhone,
-      name: profile.traits?.name,
-      email: profile.traits?.email,
-    });
+    log.info('Profile assembled successfully');
 
     return profile;
   } catch (error) {
@@ -78,16 +85,24 @@ Be warm, professional, and helpful. Ask the candidate about their nursing experi
 Keep responses conversational and under 2-3 sentences.`;
   }
 
-  const { name, job_applied, profession, abandonment_step } = profile.traits;
+  const { name, email, job_applied, profession, abandonment_step } = profile.traits;
+
+  // Include recent events if available
+  let recentActivity = '';
+  if (profile.events && profile.events.length > 0) {
+    const recentEvents = profile.events.slice(0, 5).map(e => `- ${e.event} at ${e.timestamp}`).join('\n');
+    recentActivity = `\n\nRecent Activity:\n${recentEvents}`;
+  }
 
   return `You are a healthcare recruiter for AMN Healthcare calling ${name || 'the candidate'}.
 
 Candidate Context:
 - Name: ${name || 'Unknown'}
+- Email: ${email || 'Unknown'}
 - Phone: ${profile.traits.phone || 'Unknown'}
 - Position Applied: ${job_applied || 'Not specified'}
 - Profession: ${profession || 'Not specified'}
-- Application Status: ${abandonment_step ? `Abandoned at step: ${abandonment_step}` : 'Started application'}
+- Application Status: ${abandonment_step ? `Abandoned at step: ${abandonment_step}` : 'Started application'}${recentActivity}
 
 Background:
 The candidate started applying for a position but didn't complete it. Specifically, they need to upload their credentials to proceed. We sent them an RCS message and they replied, showing interest.
