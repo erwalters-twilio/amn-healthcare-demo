@@ -18,52 +18,44 @@ const log = {
   error: (...args) => console.error('[ERROR]', ...args),
 };
 
-// Fetch Segment Profile by phone number (using anonymous_id)
+// Fetch Segment Profile by phone number
 async function fetchSegmentProfile(phone) {
   try {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
 
-    // HARDCODED TEST: Try looking up by user_id instead
-    const identifiers = [
-      `user_id:erwalters@twilio.com`,
-      `phone:${normalizedPhone}`,
-      `anonymous_id:${normalizedPhone}`,
-      encodeURIComponent(`anonymous_id:${normalizedPhone}`),
-    ];
+    // Per Segment docs, need to:
+    // 1. Use phone_number: (not phone:)
+    // 2. Replace + with %2B
+    // 3. Add /traits endpoint
+    const encodedPhone = normalizedPhone.replace('+', '%2B');
+    const identifier = `phone_number:${encodedPhone}`;
+    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}/traits`;
 
-    log.info('Trying to fetch Segment profile for:', normalizedPhone);
+    log.info('Fetching Segment profile for:', normalizedPhone);
+    log.info('URL:', url);
     log.info('Using space ID:', SEGMENT_SPACE_ID);
     log.info('Auth token present:', !!SEGMENT_PROFILE_TOKEN);
 
-    let response = null;
-    let url = null;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-    for (const identifier of identifiers) {
-      url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
-      log.info('Trying URL:', url);
-
-      response = await fetch(url, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        log.info('✓ Profile found with identifier format:', identifier);
-        break;
-      } else {
-        log.warn(`✗ Failed with ${identifier}: ${response.status}`);
-      }
-    }
-
-    if (!response || !response.ok) {
+    if (!response.ok) {
       log.warn(`Segment profile not found for ${normalizedPhone}: ${response.status}`);
       return null;
     }
 
-    const profile = await response.json();
-    log.info('Segment profile fetched:', {
+    const data = await response.json();
+
+    // Profile API returns traits directly in the response
+    const profile = {
+      traits: data.traits || data
+    };
+
+    log.info('Segment profile fetched successfully:', {
       phone: normalizedPhone,
       name: profile.traits?.name,
       email: profile.traits?.email,
