@@ -143,37 +143,37 @@ async function handleConversationRelay(ws, callSid) {
         case 'setup':
           log.info('ConversationRelay setup:', {
             callSid: data.callSid,
-            streamSid: data.streamSid,
-            parameters: data.parameters,
+            from: data.from,
+            to: data.to,
+            direction: data.direction,
           });
 
-          // Extract phone from parameters
-          if (data.parameters) {
-            phone = data.parameters.phone;
-            log.info('Phone number from parameters:', phone);
+          // Extract phone from setup message 'from' field
+          phone = data.from;
+          log.info('Phone number from setup.from:', phone);
 
-            // Fetch Segment profile
-            if (phone) {
-              log.info('Fetching Segment profile for:', phone);
-              const profile = await fetchSegmentProfile(phone);
-              log.info('Profile fetched, building system prompt...');
-              systemPrompt = buildSystemPrompt(profile);
-              log.info('System prompt built, adding to conversation history');
-              conversationHistory.push({
-                role: 'system',
-                content: systemPrompt,
-              });
+          // Fetch Segment profile
+          if (phone) {
+            log.info('Fetching Segment profile for:', phone);
+            const profile = await fetchSegmentProfile(phone);
+            log.info('Profile fetched:', profile ? 'SUCCESS' : 'NOT FOUND');
+            systemPrompt = buildSystemPrompt(profile);
+            log.info('System prompt built, adding to conversation history');
+            conversationHistory.push({
+              role: 'system',
+              content: systemPrompt,
+            });
 
-              // Proactively greet the user
-              log.info('Generating proactive greeting...');
+            // Proactively greet the user
+            log.info('Generating proactive greeting...');
 
-              // Add a user message to trigger the greeting
-              conversationHistory.push({
-                role: 'user',
-                content: 'The call just connected. Greet me now using the opening line from your instructions.',
-              });
+            // Add a user message to trigger the greeting
+            conversationHistory.push({
+              role: 'user',
+              content: 'The call just connected. Greet me now using the opening line from your instructions.',
+            });
 
-              try {
+            try {
                 const stream = await callOpenAI(conversationHistory);
                 const reader = stream.getReader();
                 const decoder = new TextDecoder();
@@ -228,28 +228,27 @@ async function handleConversationRelay(ws, callSid) {
                   content: fullResponse,
                 });
 
-              } catch (error) {
-                log.error('Error generating greeting:', error);
+            } catch (error) {
+              log.error('Error generating greeting:', error);
 
-                // Fallback: Send a generic greeting if personalized one fails
-                const fallbackGreeting = profile?.traits?.name
-                  ? `Hey ${profile.traits.name.split(' ')[0]}, thanks for getting back to us about your application. How can I help you today?`
-                  : 'Hey there, thanks for getting back to us. How can I help you today?';
+              // Fallback: Send a generic greeting if personalized one fails
+              const fallbackGreeting = profile?.traits?.name
+                ? `Hey ${profile.traits.name.split(' ')[0]}, thanks for getting back to us about your application. How can I help you today?`
+                : 'Hey there, thanks for getting back to us. How can I help you today?';
 
-                log.warn('Using fallback greeting:', fallbackGreeting);
+              log.warn('Using fallback greeting:', fallbackGreeting);
 
-                ws.send(JSON.stringify({
-                  type: 'text',
-                  token: fallbackGreeting,
-                  last: true,
-                }));
+              ws.send(JSON.stringify({
+                type: 'text',
+                token: fallbackGreeting,
+                last: true,
+              }));
 
-                // Add fallback to history
-                conversationHistory.push({
-                  role: 'assistant',
-                  content: fallbackGreeting,
-                });
-              }
+              // Add fallback to history
+              conversationHistory.push({
+                role: 'assistant',
+                content: fallbackGreeting,
+              });
             }
           }
           break;
