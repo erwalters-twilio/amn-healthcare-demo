@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: openai-realtime-relay
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: LOG_LEVEL
+        value: info
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SEGMENT_PROFILE_TOKEN
+        sync: false
+      - key: SEGMENT_SPACE_ID
+        sync: false
+    healthCheckPath: /health
