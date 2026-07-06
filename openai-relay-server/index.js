@@ -10,7 +10,7 @@ const SEGMENT_PROFILE_TOKEN = process.env.SEGMENT_PROFILE_TOKEN;
 const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
-const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
+const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?model=gpt-realtime-2';
 
 // Logging helper
 const log = {
