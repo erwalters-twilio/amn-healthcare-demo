@@ -23,8 +23,9 @@ async function fetchSegmentProfile(phone) {
   try {
     const normalizedPhone = phone.replace(/[^\d+]/g, '');
 
-    // Try multiple identifier formats
+    // HARDCODED TEST: Try looking up by user_id instead
     const identifiers = [
+      `user_id:erwalters@twilio.com`,
       `phone:${normalizedPhone}`,
       `anonymous_id:${normalizedPhone}`,
       encodeURIComponent(`anonymous_id:${normalizedPhone}`),
