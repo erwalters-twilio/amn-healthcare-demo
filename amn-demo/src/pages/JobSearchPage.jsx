@@ -4,51 +4,51 @@ import './JobSearchPage.css';
 const MOCK_JOBS = [
   {
     id: '167335',
-    title: 'Neonatal Intensive Care Unit Nurse (NICU RN)',
+    title: 'Emergency Medicine Physician',
     location: 'Littleton, CO 80122',
-    schedule: '7:00 PM - 7:00 AM',
+    schedule: 'Full-time, 12 shifts/month',
     startDate: 'July 17, 2026',
-    payRange: { min: 44, max: 47 },
+    payRange: { min: 275, max: 325 },
     perDiem: true,
     exclusive: true,
   },
   {
     id: '167336',
-    title: 'Telemetry Nurse (TELE RN)',
+    title: 'Family Medicine Physician',
     location: 'Denver, CO 80202',
-    schedule: '3x12 hour shifts',
+    schedule: 'Monday-Friday, 8am-5pm',
     startDate: 'July 24, 2026',
-    payRange: { min: 40, max: 43 },
+    payRange: { min: 225, max: 250 },
     perDiem: true,
     exclusive: false,
   },
   {
     id: '167337',
-    title: 'Emergency Room Nurse (ER RN)',
+    title: 'Hospitalist Physician',
     location: 'Aurora, CO 80012',
-    schedule: 'Rotating shifts',
+    schedule: '7 on / 7 off',
     startDate: 'August 1, 2026',
-    payRange: { min: 45, max: 50 },
+    payRange: { min: 250, max: 285 },
     perDiem: false,
     exclusive: true,
   },
   {
     id: '167338',
-    title: 'Intensive Care Unit Nurse (ICU RN)',
+    title: 'Internal Medicine Physician',
     location: 'Colorado Springs, CO 80909',
-    schedule: 'Night shift',
+    schedule: 'Full-time, outpatient',
     startDate: 'July 28, 2026',
-    payRange: { min: 42, max: 46 },
+    payRange: { min: 230, max: 260 },
     perDiem: true,
     exclusive: false,
   },
   {
     id: '167339',
-    title: 'Medical-Surgical Nurse (Med-Surg RN)',
+    title: 'Urgent Care Physician',
     location: 'Fort Collins, CO 80524',
-    schedule: 'Day shift',
+    schedule: 'Flexible shifts',
     startDate: 'August 5, 2026',
-    payRange: { min: 38, max: 42 },
+    payRange: { min: 200, max: 235 },
     perDiem: false,
     exclusive: false,
   },
@@ -81,7 +81,7 @@ export default function JobSearchPage() {
                 <h4>Profession (1)</h4>
                 <label className="filter-option">
                   <input type="checkbox" checked readOnly />
-                  <span>Nursing</span>
+                  <span>Physician</span>
                 </label>
               </div>
               <div className="filter-group">

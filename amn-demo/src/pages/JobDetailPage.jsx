@@ -38,8 +38,8 @@ export default function JobDetailPage() {
               </div>
               <div className="job-title-row">
                 <div>
-                  <h1>Neonatal Intensive Care Unit Nurse (NICU RN)</h1>
-                  <p className="job-subtitle">REGISTERED NURSE - NICU-LEVEL II</p>
+                  <h1>Emergency Medicine Physician</h1>
+                  <p className="job-subtitle">BOARD CERTIFIED/BOARD ELIGIBLE - EMERGENCY MEDICINE</p>
                   <p className="job-id">Job ID: 167335</p>
                 </div>
                 <button className="favorite-btn" aria-label="Save job">♡</button>
@@ -48,26 +48,27 @@ export default function JobDetailPage() {
             <section className="job-section">
               <h2>Job Description</h2>
               <p>
-                We are seeking an experienced Neonatal Intensive Care Unit (NICU) Registered Nurse
-                to provide exceptional care to our tiniest patients. This Level II NICU position offers
-                competitive compensation and the opportunity to work with a dedicated healthcare team.
+                We are seeking a skilled Emergency Medicine Physician to join our Level II Trauma Center.
+                This position offers competitive compensation, excellent work-life balance with flexible scheduling,
+                and the opportunity to work with a collaborative healthcare team in a state-of-the-art facility.
               </p>
               <h3>Responsibilities</h3>
               <ul>
-                <li>Provide specialized nursing care for premature and critically ill newborns</li>
-                <li>Monitor vital signs and respond to changes in patient condition</li>
-                <li>Administer medications and treatments as prescribed</li>
-                <li>Collaborate with neonatologists and healthcare team members</li>
-                <li>Support and educate families during challenging times</li>
-                <li>Maintain accurate patient records and documentation</li>
+                <li>Provide emergency medical care for patients of all acuities</li>
+                <li>Perform diagnostic procedures and interpret results</li>
+                <li>Stabilize and manage critically ill and injured patients</li>
+                <li>Collaborate with specialists and healthcare team members</li>
+                <li>Supervise and mentor resident physicians and advanced practice providers</li>
+                <li>Maintain accurate and timely medical documentation</li>
               </ul>
               <h3>Education & Requirements</h3>
               <ul>
-                <li>Active RN license in Colorado or compact state</li>
-                <li>Minimum 1 year of NICU experience required</li>
-                <li>BLS and NRP certifications required</li>
-                <li>STABLE certification preferred</li>
-                <li>Bachelor's degree in Nursing (BSN) preferred</li>
+                <li>MD or DO degree from accredited medical school</li>
+                <li>Board Certified or Board Eligible in Emergency Medicine</li>
+                <li>Active Colorado medical license or ability to obtain</li>
+                <li>DEA license required</li>
+                <li>ACLS, BLS, and PALS certifications required</li>
+                <li>ATLS certification preferred</li>
               </ul>
             </section>
           </main>
@@ -76,7 +77,7 @@ export default function JobDetailPage() {
               <h3>JOB OVERVIEW</h3>
               <div className="overview-item">
                 <strong>Facility Type</strong>
-                <p>Short Term Acute Care Hospital</p>
+                <p>Level II Trauma Center</p>
               </div>
               <div className="overview-item">
                 <strong>Facility Address</strong>
@@ -84,7 +85,7 @@ export default function JobDetailPage() {
               </div>
               <div className="overview-item">
                 <strong>Shifts</strong>
-                <p>7:00 PM - 7:00 AM</p>
+                <p>Full-time, 12 shifts/month</p>
               </div>
               <div className="overview-item">
                 <strong>Start</strong>
@@ -92,7 +93,7 @@ export default function JobDetailPage() {
               </div>
               <div className="overview-item pay-item">
                 <strong>Hourly Pay</strong>
-                <div className="pay-amount">$44 - $47</div>
+                <div className="pay-amount">$275 - $325</div>
               </div>
               <Button variant="primary" onClick={handleApply} fullWidth>
                 Apply Now
