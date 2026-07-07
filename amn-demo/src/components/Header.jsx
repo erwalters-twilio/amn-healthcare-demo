@@ -48,26 +48,26 @@ export default function Header() {
                 <div className="job-seekers-dropdown">
                   <div className="dropdown-content">
                     <div className="dropdown-categories">
-                      <div className="category-item active">Nursing</div>
+                      <div className="category-item">Nursing</div>
                       <div className="category-item">Allied</div>
-                      <div className="category-item">Physician</div>
+                      <div className="category-item active">Physician</div>
                       <div className="category-item">Advanced Practice</div>
                       <div className="category-item">Dentistry</div>
                       <div className="category-item">Leadership</div>
                     </div>
                     <div className="dropdown-main">
-                      <h3>Nursing</h3>
+                      <h3>Physician</h3>
                       <p>
                         Join the AMN Healthcare family and enjoy exclusive benefits,
-                        competitive pay, and the support you need to succeed in your
-                        nursing career.
+                        competitive compensation, and the support you need to succeed in your
+                        physician career.
                       </p>
                       <Link
                         to="/search"
                         className="dropdown-link"
-                        onClick={() => handleNavClick('Learn more about Nursing', '/search')}
+                        onClick={() => handleNavClick('Learn more about Physician', '/search')}
                       >
-                        Learn more about Nursing Job opportunities
+                        Learn more about Physician Job opportunities
                       </Link>
                       <div className="dropdown-actions">
                         <Link
