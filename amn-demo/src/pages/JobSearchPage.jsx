@@ -5,7 +5,7 @@ const MOCK_JOBS = [
   {
     id: '167335',
     title: 'Emergency Medicine Physician',
-    location: 'Littleton, CO 80122',
+    location: 'Cleveland, OH 44106',
     schedule: 'Full-time, 12 shifts/month',
     startDate: 'July 17, 2026',
     payRange: { min: 275, max: 325 },
@@ -15,7 +15,7 @@ const MOCK_JOBS = [
   {
     id: '167336',
     title: 'Family Medicine Physician',
-    location: 'Denver, CO 80202',
+    location: 'Lakewood, OH 44107',
     schedule: 'Monday-Friday, 8am-5pm',
     startDate: 'July 24, 2026',
     payRange: { min: 225, max: 250 },
@@ -25,7 +25,7 @@ const MOCK_JOBS = [
   {
     id: '167337',
     title: 'Hospitalist Physician',
-    location: 'Aurora, CO 80012',
+    location: 'Parma, OH 44129',
     schedule: '7 on / 7 off',
     startDate: 'August 1, 2026',
     payRange: { min: 250, max: 285 },
@@ -35,7 +35,7 @@ const MOCK_JOBS = [
   {
     id: '167338',
     title: 'Internal Medicine Physician',
-    location: 'Colorado Springs, CO 80909',
+    location: 'Mentor, OH 44060',
     schedule: 'Full-time, outpatient',
     startDate: 'July 28, 2026',
     payRange: { min: 230, max: 260 },
@@ -45,7 +45,7 @@ const MOCK_JOBS = [
   {
     id: '167339',
     title: 'Urgent Care Physician',
-    location: 'Fort Collins, CO 80524',
+    location: 'Strongsville, OH 44136',
     schedule: 'Flexible shifts',
     startDate: 'August 5, 2026',
     payRange: { min: 200, max: 235 },

@@ -65,7 +65,7 @@ export default function JobDetailPage() {
               <ul>
                 <li>MD or DO degree from accredited medical school</li>
                 <li>Board Certified or Board Eligible in Emergency Medicine</li>
-                <li>Active Colorado medical license or ability to obtain</li>
+                <li>Active Ohio medical license or ability to obtain</li>
                 <li>DEA license required</li>
                 <li>ACLS, BLS, and PALS certifications required</li>
                 <li>ATLS certification preferred</li>
@@ -81,7 +81,7 @@ export default function JobDetailPage() {
               </div>
               <div className="overview-item">
                 <strong>Facility Address</strong>
-                <p>7700 S. Broadway<br />Littleton, CO 80122</p>
+                <p>9500 Euclid Avenue<br />Cleveland, OH 44106</p>
               </div>
               <div className="overview-item">
                 <strong>Shifts</strong>
