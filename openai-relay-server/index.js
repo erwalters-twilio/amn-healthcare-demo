@@ -504,6 +504,13 @@ async function handleConversationRelay(ws, callSid) {
               const userId = userProfile?.traits?.email || phone;
               if (userId) {
                 await segmentIdentify(userId, { [fieldName]: fieldValue });
+                await trackSegmentEvent(userId, 'Profile Field Collected', {
+                  field_name: fieldName,
+                  field_value: fieldValue,
+                  channel: 'ai_voice',
+                  call_sid: callSid,
+                  phone,
+                });
                 log.info(`Field written to Segment: ${fieldName}=${fieldValue}`);
               }
             }
