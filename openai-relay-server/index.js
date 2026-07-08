@@ -280,8 +280,17 @@ function streamCleanToTTS(ws, chunk, state) {
   }
 }
 
-// Extract profile fields confirmed in a single conversation turn
-async function extractFieldsFromTurn(userMessage, assistantResponse) {
+// Field collection order and targeted extraction instructions
+const FIELD_COLLECTION = [
+  { key: 'dateOfBirth',       instruction: 'Extract the date of birth. Return ISO format YYYY-MM-DD. Example: "March 15 1985" → "1985-03-15".' },
+  { key: 'licenseState',      instruction: 'Extract the US state where their clinical license is active. Return the state name or abbreviation.' },
+  { key: 'yearsOfExperience', instruction: 'Extract the number of years of clinical experience. Return a number only.' },
+  { key: 'shiftPreference',   instruction: 'Extract shift preference. Return exactly one of: "days", "nights", or "either".' },
+  { key: 'availableStartDate',instruction: 'Extract when they can start a new position. Return a brief plain-text description.' },
+];
+
+// Extract one specific field value from the candidate's raw response
+async function extractSpecificField(fieldKey, instruction, candidateSpeech) {
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -294,32 +303,21 @@ async function extractFieldsFromTurn(userMessage, assistantResponse) {
         messages: [
           {
             role: 'system',
-            content: `You are a data extractor. Given a conversation turn between a healthcare candidate and a recruiter, extract any profile field values that were confirmed or provided by the candidate.
-
-Return a JSON object with ONLY these keys (omit any not confirmed in this specific turn):
-- dateOfBirth: ISO date string YYYY-MM-DD
-- licenseState: state name or abbreviation
-- yearsOfExperience: number
-- shiftPreference: "days", "nights", or "either"
-- availableStartDate: plain text description
-
-Return {} if no fields were confirmed. Return only valid JSON, no other text.`,
+            content: `${instruction} Return JSON: {"value": "..."} or {"value": null} if the information is not present. Return only valid JSON, no other text.`,
           },
-          {
-            role: 'user',
-            content: `Candidate said: "${userMessage}"\nRecruiter responded: "${assistantResponse}"`,
-          },
+          { role: 'user', content: candidateSpeech },
         ],
         temperature: 0,
-        max_tokens: 100,
+        max_tokens: 50,
         response_format: { type: 'json_object' },
       }),
     });
-    if (!res.ok) return {};
+    if (!res.ok) return null;
     const data = await res.json();
-    return JSON.parse(data.choices[0].message.content);
+    const result = JSON.parse(data.choices[0].message.content);
+    return result.value || null;
   } catch {
-    return {};
+    return null;
   }
 }
 
@@ -360,6 +358,7 @@ async function handleConversationRelay(ws, callSid) {
   let systemPrompt = null;
   let phone = null;
   let userProfile = null;
+  const collectedFieldKeys = new Set(); // tracks which fields have been captured this call
 
   ws.on('message', async (message) => {
     try {
@@ -543,17 +542,24 @@ async function handleConversationRelay(ws, callSid) {
 
             log.info('AI responded:', fullResponse);
 
-            // Extract confirmed fields via dedicated extraction call and identify in Segment
-            const cleanResponseText = fullResponse
-              .replace(/\[FIELD:[^\]]+\]/g, '')
-              .replace(/\[TRANSFER\]/g, '')
-              .trim();
-            const extractedFields = await extractFieldsFromTurn(userMessage, cleanResponseText);
-            if (Object.keys(extractedFields).length > 0) {
-              const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
-              if (userId) {
-                await segmentIdentify(userId, extractedFields);
-                log.info('Fields identified in Segment:', extractedFields);
+            // Determine which field we're currently collecting (first in order not yet captured)
+            const alreadyKnown = new Set([
+              ...Object.keys(userProfile?.traits || {}).filter(k => userProfile.traits[k]),
+              ...collectedFieldKeys,
+            ]);
+            const pendingField = FIELD_COLLECTION.find(f => !alreadyKnown.has(f.key));
+
+            if (pendingField) {
+              log.info('Extracting field:', pendingField.key, 'from candidate speech:', userMessage);
+              const value = await extractSpecificField(pendingField.key, pendingField.instruction, userMessage);
+              log.info('Extracted value for', pendingField.key, ':', value);
+              if (value) {
+                collectedFieldKeys.add(pendingField.key);
+                const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
+                if (userId) {
+                  await segmentIdentify(userId, { [pendingField.key]: value });
+                  log.info('Segment identify sent:', pendingField.key, '=', value);
+                }
               }
             }
 
