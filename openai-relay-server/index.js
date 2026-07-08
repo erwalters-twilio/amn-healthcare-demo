@@ -9,6 +9,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SEGMENT_PROFILE_TOKEN = process.env.SEGMENT_PROFILE_TOKEN;
 const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID;
 const SEGMENT_WRITE_KEY = process.env.SEGMENT_WRITE_KEY;
+const SEGMENT_USER_ID = process.env.SEGMENT_USER_ID; // fallback userId for Segment calls
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 // Logging helper
@@ -261,6 +262,31 @@ RULES:
   return systemPrompt;
 }
 
+// Stream a chunk to TTS, buffering across chunk boundaries to strip [TOKEN] markers
+// state = { buffer: '' } — pass same object for every chunk in a response
+function streamCleanToTTS(ws, chunk, state) {
+  state.buffer += chunk;
+  while (state.buffer.length > 0) {
+    const open = state.buffer.indexOf('[');
+    if (open === -1) {
+      ws.send(JSON.stringify({ type: 'text', token: state.buffer, last: false }));
+      state.buffer = '';
+      break;
+    }
+    if (open > 0) {
+      ws.send(JSON.stringify({ type: 'text', token: state.buffer.slice(0, open), last: false }));
+    }
+    const close = state.buffer.indexOf(']', open);
+    if (close === -1) {
+      // Token incomplete — hold from '[' and wait for more chunks
+      state.buffer = state.buffer.slice(open);
+      break;
+    }
+    // Complete token found — discard it, continue with remainder
+    state.buffer = state.buffer.slice(close + 1);
+  }
+}
+
 // Call OpenAI ChatCompletion API
 async function callOpenAI(messages) {
   try {
@@ -353,6 +379,7 @@ async function handleConversationRelay(ws, callSid) {
 
                 let fullResponse = '';
                 let buffer = '';
+                const ttsState = { buffer: '' };
 
                 while (true) {
                   const { done, value } = await reader.read();
@@ -373,17 +400,7 @@ async function handleConversationRelay(ws, callSid) {
 
                         if (content) {
                           fullResponse += content;
-                          // Strip metadata tokens before sending to TTS
-                          const cleanContent = content
-                            .replace(/\[TRANSFER\]/g, '')
-                            .replace(/\[FIELD:[^\]]*\]/g, '');
-                          if (cleanContent) {
-                            ws.send(JSON.stringify({
-                              type: 'text',
-                              token: cleanContent,
-                              last: false,
-                            }));
-                          }
+                          streamCleanToTTS(ws, content, ttsState);
                         }
                       } catch (e) {
                         // Skip invalid JSON
@@ -451,6 +468,7 @@ async function handleConversationRelay(ws, callSid) {
 
             let fullResponse = '';
             let buffer = '';
+            const ttsState = { buffer: '' };
 
             while (true) {
               const { done, value } = await reader.read();
@@ -471,16 +489,7 @@ async function handleConversationRelay(ws, callSid) {
 
                     if (content) {
                       fullResponse += content;
-
-                      // Don't send [TRANSFER] marker to the user
-                      if (!content.includes('[TRANSFER]')) {
-                        // Send token to Twilio
-                        ws.send(JSON.stringify({
-                          type: 'text',
-                          token: content,
-                          last: false,
-                        }));
-                      }
+                      streamCleanToTTS(ws, content, ttsState);
                     }
                   } catch (e) {
                     // Skip invalid JSON
@@ -501,7 +510,7 @@ async function handleConversationRelay(ws, callSid) {
             // Extract and write any collected fields to Segment
             const fieldMatches = [...fullResponse.matchAll(/\[FIELD:(\w+)=([^\]]+)\]/g)];
             for (const [, fieldName, fieldValue] of fieldMatches) {
-              const userId = userProfile?.traits?.email || phone;
+              const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
               if (userId) {
                 await segmentIdentify(userId, { [fieldName]: fieldValue });
                 await trackSegmentEvent(userId, 'Profile Field Collected', {
@@ -531,7 +540,7 @@ async function handleConversationRelay(ws, callSid) {
               });
 
               // Track Segment event
-              const userId = userProfile?.traits?.email || phone;
+              const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
               if (userId) {
                 await trackSegmentEvent(
                   userId,
