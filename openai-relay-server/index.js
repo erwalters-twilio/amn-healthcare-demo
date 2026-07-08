@@ -280,6 +280,49 @@ function streamCleanToTTS(ws, chunk, state) {
   }
 }
 
+// Extract profile fields confirmed in a single conversation turn
+async function extractFieldsFromTurn(userMessage, assistantResponse) {
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a data extractor. Given a conversation turn between a healthcare candidate and a recruiter, extract any profile field values that were confirmed or provided by the candidate.
+
+Return a JSON object with ONLY these keys (omit any not confirmed in this specific turn):
+- dateOfBirth: ISO date string YYYY-MM-DD
+- licenseState: state name or abbreviation
+- yearsOfExperience: number
+- shiftPreference: "days", "nights", or "either"
+- availableStartDate: plain text description
+
+Return {} if no fields were confirmed. Return only valid JSON, no other text.`,
+          },
+          {
+            role: 'user',
+            content: `Candidate said: "${userMessage}"\nRecruiter responded: "${assistantResponse}"`,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 100,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return JSON.parse(data.choices[0].message.content);
+  } catch {
+    return {};
+  }
+}
+
 // Call OpenAI ChatCompletion API
 async function callOpenAI(messages) {
   try {
@@ -500,20 +543,17 @@ async function handleConversationRelay(ws, callSid) {
 
             log.info('AI responded:', fullResponse);
 
-            // Extract and write any collected fields to Segment
-            const fieldMatches = [...fullResponse.matchAll(/\[FIELD:(\w+)=([^\]]+)\]/g)];
-            for (const [, fieldName, fieldValue] of fieldMatches) {
+            // Extract confirmed fields via dedicated extraction call and identify in Segment
+            const cleanResponseText = fullResponse
+              .replace(/\[FIELD:[^\]]+\]/g, '')
+              .replace(/\[TRANSFER\]/g, '')
+              .trim();
+            const extractedFields = await extractFieldsFromTurn(userMessage, cleanResponseText);
+            if (Object.keys(extractedFields).length > 0) {
               const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
               if (userId) {
-                await segmentIdentify(userId, { [fieldName]: fieldValue });
-                await trackSegmentEvent(userId, 'Profile Field Collected', {
-                  field_name: fieldName,
-                  field_value: fieldValue,
-                  channel: 'ai_voice',
-                  call_sid: callSid,
-                  phone,
-                });
-                log.info(`Field written to Segment: ${fieldName}=${fieldValue}`);
+                await segmentIdentify(userId, extractedFields);
+                log.info('Fields identified in Segment:', extractedFields);
               }
             }
 
