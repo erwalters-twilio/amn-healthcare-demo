@@ -19,6 +19,35 @@ const log = {
   error: (...args) => console.error('[ERROR]', ...args),
 };
 
+// Write traits to Segment profile
+async function segmentIdentify(userId, traits = {}) {
+  if (!SEGMENT_WRITE_KEY) {
+    log.warn('SEGMENT_WRITE_KEY not set, skipping identify');
+    return;
+  }
+  try {
+    const payload = {
+      userId,
+      traits,
+      timestamp: new Date().toISOString(),
+    };
+    log.info('Segment identify:', userId, traits);
+    const response = await fetch('https://api.segment.io/v1/identify', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${SEGMENT_WRITE_KEY}:`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      log.error('Segment identify failed:', response.status, await response.text());
+    }
+  } catch (error) {
+    log.error('Error calling Segment identify:', error);
+  }
+}
+
 // Send event to Segment
 async function trackSegmentEvent(userId, eventName, properties = {}) {
   if (!SEGMENT_WRITE_KEY) {
@@ -58,11 +87,13 @@ async function trackSegmentEvent(userId, eventName, properties = {}) {
 // Fetch Segment Profile by phone number
 async function fetchSegmentProfile(phone) {
   try {
-    // HARDCODED TEST: Use user_id for Eric
-    const identifier = `user_id:erwalters@twilio.com`;
+    // Use phone number if provided, fall back to test user for dev
+    const identifier = phone
+      ? `external_id:phone:${phone}`
+      : `user_id:erwalters@twilio.com`;
     const baseUrl = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
 
-    log.info('Fetching Segment profile for user_id: erwalters@twilio.com');
+    log.info('Fetching Segment profile for:', identifier);
     log.info('Base URL:', baseUrl);
     log.info('Using space ID:', SEGMENT_SPACE_ID);
     log.info('Auth token present:', !!SEGMENT_PROFILE_TOKEN);
@@ -117,90 +148,116 @@ async function fetchSegmentProfile(phone) {
 // Build system prompt from Segment profile
 function buildSystemPrompt(profile) {
   if (!profile || !profile.traits) {
-    return `You are a healthcare recruiter for AMN Healthcare.
+    return `You are Jamie, a healthcare recruiter for AMN Healthcare.
 
-Be warm, professional, and helpful. Ask the candidate about their nursing experience and what positions they're interested in.
+Be warm and professional. Before recommending any jobs, collect these fields one at a time:
+1. Shift type (staff vs travel)
+2. Location preference
+3. Salary expectation
+4. Start date availability
 
-Keep responses conversational and under 2-3 sentences.`;
+After each confirmed answer, output on its own line: [FIELD:fieldName=value]
+After collecting all fields, recommend relevant healthcare jobs and offer a recruiter transfer.
+When transferring, output on its own line: [TRANSFER]
+
+Keep each response to 2-3 sentences. Do not mention you are an AI.`;
   }
 
-  const { firstName, lastName, email, job_applied, profession, specialty, discipline, city } = profile.traits;
-  const name = firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || null);
+  const { firstName, lastName, email, job_applied, profession, specialty, discipline, city,
+          shiftType, locationPreference, salaryExpectation, startDate, travelWillingness } = profile.traits;
+  const name = firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || 'there');
+  const firstName_ = firstName || name;
 
-  log.info('Building system prompt with name:', name, 'email:', email, 'profession:', profession, 'specialty:', specialty);
+  log.info('Building system prompt with name:', name, 'profession:', profession, 'specialty:', specialty);
 
-  // Include recent events if available
-  let recentActivity = '';
-  if (profile.events && profile.events.length > 0) {
-    const recentEvents = profile.events.slice(0, 5).map(e => `- ${e.event} at ${e.timestamp}`).join('\n');
-    recentActivity = `\n\nRecent Activity:\n${recentEvents}`;
-  }
+  const isPhysician = profession === 'Physician' || profession === 'Doctor';
 
-  const systemPrompt = `You are a healthcare recruiter for AMN Healthcare calling ${name || 'the candidate'}.
-
-Candidate Profile:
-- Name: ${name || 'Unknown'}
-- Email: ${email || 'Unknown'}
-- Phone: ${profile.traits.phone || 'Unknown'}
-- Profession: ${profession || 'Nurse'}
-- Specialty: ${specialty || 'Not specified'}
-- Discipline: ${discipline || 'Not specified'}
-- Location Preference: ${city || 'Not specified'}
-- Position Applied: ${job_applied || 'Not specified'}${recentActivity}
-
-Available Jobs to Recommend:
-
-CRITICAL: ONLY recommend jobs that match their profession: ${profession}
-
-${profession === 'Physician' || profession === 'Doctor' ? `
-PHYSICIAN JOBS (recommend these for Physicians/Doctors):
+  const jobList = isPhysician ? `
+PHYSICIAN JOBS:
 - Emergency Medicine Physician, Cleveland Clinic Main Campus, three hundred fifty thousand to four hundred fifty thousand dollars per year, full benefits
 - Hospitalist, University Hospitals Cleveland, three hundred thousand to three hundred seventy five thousand dollars per year, flexible schedule
 - Internal Medicine Physician, MetroHealth System, two hundred eighty thousand to three hundred twenty thousand dollars per year, sign-on bonus
 - Family Medicine Physician, Cleveland Clinic Hillcrest, two hundred sixty thousand to three hundred thousand dollars per year, outpatient clinic
-- Critical Care Physician, Akron Children's Hospital, four hundred thousand to five hundred thousand dollars per year, ICU leadership role
-` : `
-NURSING JOBS (recommend these for RNs/Nurses):
+- Critical Care Physician, Akron Children's Hospital, four hundred thousand to five hundred thousand dollars per year, ICU leadership role` :
+`NURSING JOBS:
 - Travel Nurse ICU, Cleveland Clinic Main Campus, twenty four hundred dollars per week, thirteen week assignment
 - Staff RN Emergency Department, University Hospitals Cleveland, seventy five thousand to ninety five thousand dollars per year
 - Travel Nurse Med-Surg, MetroHealth System, twenty two hundred dollars per week, eight week assignment
 - PRN RN Pediatrics, Akron Children's Hospital, fifty two dollars per hour, flexible schedule
-- Staff RN Operating Room, Cleveland Clinic Hillcrest, eighty thousand to one hundred thousand dollars per year with sign-on bonus
-`}
+- Staff RN Operating Room, Cleveland Clinic Hillcrest, eighty thousand to one hundred thousand dollars per year with sign-on bonus`;
 
-Conversation Flow:
-1. OPENING: Greet them warmly by first name and mention you're calling about healthcare opportunities that match their profile.
+  // Determine which fields still need to be collected
+  const missingFields = [];
+  if (!shiftType) missingFields.push({ key: 'shiftType', question: 'Are you looking for a travel assignment or a permanent staff position?' });
+  if (!locationPreference && !city) missingFields.push({ key: 'locationPreference', question: 'Do you have a specific location in mind, or are you flexible on where you work?' });
+  if (!salaryExpectation) missingFields.push({ key: 'salaryExpectation', question: `What's your target compensation — roughly what range are you looking for?` });
+  if (!startDate) missingFields.push({ key: 'startDate', question: 'When would you be available to start a new position?' });
 
-2. ASK ABOUT PREFERENCES: Ask what they're looking for - travel or staff position, preferred location (city/region), shift preferences, specialty interests.
+  const missingFieldsText = missingFields.length > 0
+    ? `FIELDS TO COLLECT (ask one at a time in this order):\n${missingFields.map((f, i) => `${i + 1}. ${f.key}: "${f.question}"`).join('\n')}`
+    : `All key profile fields are already collected. Skip directly to STEP 4.`;
 
-3. RECOMMEND JOBS: CRITICAL - Based on their profession (${profession}), ONLY recommend jobs from the ${profession === 'Physician' || profession === 'Doctor' ? 'PHYSICIAN JOBS' : 'NURSING JOBS'} section above. Match specialty (${specialty}) if specified. When stating salaries, say them naturally: "three hundred thousand dollars per year" or "twenty four hundred dollars per week" - NEVER say "dollar" followed by numbers like "$300k". Make it conversational, not a list.
+  const knownFields = [
+    profession && `Profession: ${profession}`,
+    specialty && `Specialty: ${specialty}`,
+    discipline && `Discipline: ${discipline}`,
+    city && `City: ${city}`,
+    shiftType && `Shift type: ${shiftType}`,
+    locationPreference && `Location preference: ${locationPreference}`,
+    salaryExpectation && `Salary expectation: ${salaryExpectation}`,
+    startDate && `Start date: ${startDate}`,
+    job_applied && `Job applied for: ${job_applied}`,
+  ].filter(Boolean).join('\n- ');
 
-4. GAUGE INTEREST: After presenting jobs, ask which one sounds most interesting or if they'd like to hear more details about a specific position.
+  const systemPrompt = `You are Jamie, a warm and professional healthcare recruiter for AMN Healthcare, calling ${firstName_}.
 
-5. TRANSFER TO RECRUITER: As soon as they express interest in a specific job (e.g., "that ICU position sounds good" or "tell me more about the Cleveland Clinic one"), say: "Perfect! Let me connect you with one of our specialized recruiters who can share all the details and help you get started. Hold on just a moment." Then on a new line by itself, output exactly: [TRANSFER]
+WHAT WE KNOW ABOUT ${firstName_.toUpperCase()}:
+- Name: ${name}
+- ${knownFields || 'Limited profile data — proceed to collecting information'}
 
-Instructions:
-- Be warm, professional, and enthusiastic
-- Keep responses brief (2-3 sentences max)
-- Use their first name naturally throughout the conversation
-- CRITICAL: ONLY recommend jobs that match the candidate's profession (${profession})
-- When stating salaries, speak them naturally: "seventy five thousand dollars" NOT "dollar seventy five k"
-- When stating hourly rates, say "fifty two dollars per hour" NOT "dollar fifty two per hour"
-- Focus on matching jobs to their stated preferences
-- Don't mention you're an AI
-- Listen for ANY expression of interest in a job and transfer immediately
-- Make job recommendations sound natural and conversational, not like reading a list
+${missingFieldsText}
 
-Transfer Trigger Phrases (listen for these):
-- "That sounds good/interesting/great"
-- "Tell me more about [job name]"
-- "I'm interested in [job]"
-- "What are the details on [job]"
-- Any positive response to a specific job recommendation
+AVAILABLE JOBS (ONLY recommend jobs matching profession: ${profession || 'healthcare professional'}):
+${jobList}
 
-Remember: Your goal is to present relevant opportunities and transfer to a human recruiter when they show interest.`;
+STRICT CONVERSATION FLOW — follow these steps in order:
 
-  log.info('System prompt created with length:', systemPrompt.length);
+STEP 1 — OPENING
+Greet ${firstName_} warmly by first name. Say you're calling from AMN Healthcare to personally help match them with the right healthcare opportunity. Keep it to 1-2 sentences.
+
+STEP 2 — TRANSITION (only if there are fields to collect)
+Say something like: "I want to make sure I find you exactly the right fit. I have just a couple quick questions — it'll only take a minute."
+
+STEP 3 — COLLECT MISSING FIELDS (one at a time)
+Ask each field from the FIELDS TO COLLECT list ONE question at a time. After the candidate answers and you've confirmed it, end your response with the field token on its own line:
+[FIELD:fieldName=value]
+
+Example: If they say "I want a staff position", respond naturally and end with:
+[FIELD:shiftType=staff]
+
+Use these exact field names: shiftType, locationPreference, salaryExpectation, startDate
+Values should be concise: shiftType="staff"|"travel"|"per_diem", locationPreference=city or "flexible", salaryExpectation=number, startDate="immediately"|"30 days"|specific date
+
+STEP 4 — CONFIRM SUMMARY
+Once all fields are collected (or if already known), give a brief summary: "Great — so you're a ${profession || 'healthcare professional'} looking for [shiftType] work in [location], targeting [salary], available [startDate]. Does that sound right?"
+
+STEP 5 — RECOMMEND JOBS
+After the summary is confirmed, recommend 1-2 jobs from the job list that best match their criteria. Be conversational — don't read a list. Mention the facility name and compensation naturally.
+
+STEP 6 — TRANSFER TO RECRUITER
+When they express interest in a specific role, say: "Perfect! Let me connect you with one of our specialized recruiters who has all the details. Hold on just a moment." Then on its own line:
+[TRANSFER]
+
+RULES:
+- Keep each response to 2-3 sentences (plus any [FIELD:] token)
+- [FIELD:] and [TRANSFER] tokens go on their own line at the END of your response, after the speech
+- NEVER recommend jobs before completing Steps 3-4
+- ONLY recommend ${isPhysician ? 'physician' : 'nursing'} jobs
+- Speak salaries naturally: "three hundred thousand dollars" not "$300k"
+- Do NOT mention you are an AI
+- Use ${firstName_}'s first name occasionally to keep it personal`;
+
+  log.info('System prompt created, missing fields to collect:', missingFields.map(f => f.key));
   return systemPrompt;
 }
 
@@ -316,11 +373,17 @@ async function handleConversationRelay(ws, callSid) {
 
                         if (content) {
                           fullResponse += content;
-                          ws.send(JSON.stringify({
-                            type: 'text',
-                            token: content,
-                            last: false,
-                          }));
+                          // Strip metadata tokens before sending to TTS
+                          const cleanContent = content
+                            .replace(/\[TRANSFER\]/g, '')
+                            .replace(/\[FIELD:[^\]]*\]/g, '');
+                          if (cleanContent) {
+                            ws.send(JSON.stringify({
+                              type: 'text',
+                              token: cleanContent,
+                              last: false,
+                            }));
+                          }
                         }
                       } catch (e) {
                         // Skip invalid JSON
@@ -435,27 +498,42 @@ async function handleConversationRelay(ws, callSid) {
 
             log.info('AI responded:', fullResponse);
 
+            // Extract and write any collected fields to Segment
+            const fieldMatches = [...fullResponse.matchAll(/\[FIELD:(\w+)=([^\]]+)\]/g)];
+            for (const [, fieldName, fieldValue] of fieldMatches) {
+              const userId = userProfile?.traits?.email || phone;
+              if (userId) {
+                await segmentIdentify(userId, { [fieldName]: fieldValue });
+                log.info(`Field written to Segment: ${fieldName}=${fieldValue}`);
+              }
+            }
+
+            // Strip all metadata tokens for the history entry
+            const cleanResponse = fullResponse
+              .replace(/\[TRANSFER\]/g, '')
+              .replace(/\[FIELD:[^\]]+\]/g, '')
+              .trim();
+
             // Check if response contains transfer trigger
             if (fullResponse.includes('[TRANSFER]')) {
               log.info('Transfer trigger detected, tracking event and ending call');
 
-              // Remove [TRANSFER] from response before adding to history
-              const cleanResponse = fullResponse.replace('[TRANSFER]', '').trim();
               conversationHistory.push({
                 role: 'assistant',
                 content: cleanResponse,
               });
 
               // Track Segment event
-              if (userProfile && userProfile.traits) {
+              const userId = userProfile?.traits?.email || phone;
+              if (userId) {
                 await trackSegmentEvent(
-                  'erwalters@twilio.com', // hardcoded for now, use userProfile.traits.email when dynamic
+                  userId,
                   'Call Transferred to Recruiter',
                   {
                     call_sid: callSid,
                     phone: phone,
-                    profession: userProfile.traits.profession || 'Unknown',
-                    specialty: userProfile.traits.specialty || 'Unknown',
+                    profession: userProfile?.traits?.profession || 'Unknown',
+                    specialty: userProfile?.traits?.specialty || 'Unknown',
                     timestamp: new Date().toISOString(),
                     source: 'ai_voice_agent',
                   }
@@ -473,7 +551,7 @@ async function handleConversationRelay(ws, callSid) {
             // Add to conversation history
             conversationHistory.push({
               role: 'assistant',
-              content: fullResponse,
+              content: cleanResponse,
             });
 
           } catch (error) {
