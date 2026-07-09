@@ -131,7 +131,7 @@ async function fetchSegmentProfile(phone) {
   try {
     // Use phone number if provided, fall back to test user for dev
     const identifier = phone
-      ? `external_id:phone:${phone}`
+      ? `anonymous_id:${phone}`
       : `user_id:erwalters@twilio.com`;
     const baseUrl = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
 
