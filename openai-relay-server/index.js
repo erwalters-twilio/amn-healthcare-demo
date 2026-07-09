@@ -9,7 +9,10 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SEGMENT_PROFILE_TOKEN = process.env.SEGMENT_PROFILE_TOKEN;
 const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID;
 const SEGMENT_WRITE_KEY = process.env.SEGMENT_WRITE_KEY;
-const SEGMENT_USER_ID = process.env.SEGMENT_USER_ID; // fallback userId for Segment calls
+const SEGMENT_USER_ID = process.env.SEGMENT_USER_ID;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const VERCEL_URL = process.env.VERCEL_URL || 'https://amn-demo.vercel.app';
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 // Logging helper
@@ -82,6 +85,44 @@ async function trackSegmentEvent(userId, eventName, properties = {}) {
     }
   } catch (error) {
     log.error('Error tracking Segment event:', error);
+  }
+}
+
+// Redirect an in-progress Twilio call to the Flex enqueue endpoint
+async function redirectCallToFlex(callSid, phone) {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+    log.warn('TWILIO_ACCOUNT_SID/AUTH_TOKEN not set — cannot redirect call via API');
+    return false;
+  }
+  if (!callSid || callSid === 'unknown') {
+    log.warn('callSid is unknown — cannot redirect call via API');
+    return false;
+  }
+  try {
+    const enqueueUrl = `${VERCEL_URL}/api/voice/enqueue?phone=${encodeURIComponent(phone)}`;
+    log.info('Redirecting call', callSid, 'to Flex via', enqueueUrl);
+    const body = new URLSearchParams({ Url: enqueueUrl, Method: 'GET' });
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${callSid}.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      }
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      log.error('Twilio call redirect failed:', response.status, text);
+      return false;
+    }
+    log.info('Call redirect to Flex succeeded for', callSid);
+    return true;
+  } catch (error) {
+    log.error('Error redirecting call to Flex:', error);
+    return false;
   }
 }
 
@@ -351,14 +392,15 @@ async function callOpenAI(messages) {
 }
 
 // Handle ConversationRelay WebSocket connection
-async function handleConversationRelay(ws, callSid) {
-  log.info(`New ConversationRelay connection: ${callSid}`);
+async function handleConversationRelay(ws, initialCallSid) {
+  log.info(`New ConversationRelay connection: ${initialCallSid}`);
 
+  let callSid = initialCallSid; // updated from setup message
   let conversationHistory = [];
   let systemPrompt = null;
   let phone = null;
   let userProfile = null;
-  const collectedFieldKeys = new Set(); // tracks which fields have been captured this call
+  const collectedFieldKeys = new Set();
 
   ws.on('message', async (message) => {
     try {
@@ -368,6 +410,8 @@ async function handleConversationRelay(ws, callSid) {
 
       switch (data.type) {
         case 'setup':
+          // Capture the real callSid from the setup payload
+          if (data.callSid) callSid = data.callSid;
           log.info('ConversationRelay setup:', {
             callSid: data.callSid,
             from: data.from,
@@ -595,7 +639,12 @@ async function handleConversationRelay(ws, callSid) {
                 );
               }
 
-              // End the call
+              // Redirect the live call to Flex via Twilio REST API (most reliable)
+              const redirected = await redirectCallToFlex(callSid, phone);
+              if (!redirected) {
+                // Fallback: send type:end and hope TwiML <Enqueue> executes
+                log.warn('API redirect failed — falling back to type:end');
+              }
               ws.send(JSON.stringify({
                 type: 'end',
                 reason: 'Transferring to recruiter',
