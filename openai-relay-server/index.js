@@ -586,23 +586,26 @@ async function handleConversationRelay(ws, initialCallSid) {
 
             log.info('AI responded:', fullResponse);
 
-            // Determine which field we're currently collecting (first in order not yet captured)
-            const alreadyKnown = new Set([
-              ...Object.keys(userProfile?.traits || {}).filter(k => userProfile.traits[k]),
-              ...collectedFieldKeys,
-            ]);
-            const pendingField = FIELD_COLLECTION.find(f => !alreadyKnown.has(f.key));
-
-            if (pendingField) {
-              log.info('Extracting field:', pendingField.key, 'from candidate speech:', userMessage);
-              const value = await extractSpecificField(pendingField.key, pendingField.instruction, userMessage);
-              log.info('Extracted value for', pendingField.key, ':', value);
-              if (value) {
-                collectedFieldKeys.add(pendingField.key);
-                const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
+            // Parse [FIELD:key=value] tokens the AI emits and identify each one
+            const fieldTokenRegex = /\[FIELD:(\w+)=([^\]]+)\]/g;
+            let fieldMatch;
+            const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
+            while ((fieldMatch = fieldTokenRegex.exec(fullResponse)) !== null) {
+              const fieldKey = fieldMatch[1];
+              const fieldValue = fieldMatch[2].trim();
+              if (fieldKey && fieldValue && !collectedFieldKeys.has(fieldKey)) {
+                collectedFieldKeys.add(fieldKey);
+                log.info('[FIELD] token captured:', fieldKey, '=', fieldValue);
                 if (userId) {
-                  await segmentIdentify(userId, { [pendingField.key]: value });
-                  log.info('Segment identify sent:', pendingField.key, '=', value);
+                  await segmentIdentify(userId, { [fieldKey]: fieldValue });
+                  await trackSegmentEvent(userId, 'Profile Field Collected', {
+                    field_name: fieldKey,
+                    field_value: fieldValue,
+                    phone,
+                    call_sid: callSid,
+                    channel: 'ai_voice',
+                  });
+                  log.info('Segment identify + track sent:', fieldKey, '=', fieldValue);
                 }
               }
             }
