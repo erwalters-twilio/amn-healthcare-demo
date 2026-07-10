@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     // to <Enqueue> and routes the live call into the Flex TaskRouter queue.
     const enqueueBlock = FLEX_WORKFLOW_SID
       ? `\n  <Enqueue workflowSid="${FLEX_WORKFLOW_SID}">
-    <TaskAttributes>{"from":"${phone}","phone":"${phone}","type":"recruiter_transfer","channel":"voice"}</TaskAttributes>
+    <TaskAttributes>{"from":"${phone}","caller":"${phone}","phone":"${phone}","type":"recruiter_transfer","channel":"voice"}</TaskAttributes>
   </Enqueue>`
       : '';
 
