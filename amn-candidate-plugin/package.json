@@ -1,0 +1,29 @@
+{
+  "name": "amn-candidate-plugin",
+  "description": "AMN Healthcare candidate profile panel for Twilio Flex",
+  "version": "0.0.3",
+  "private": true,
+  "dependencies": {
+    "@twilio/flex-plugin-scripts": "7.1.2",
+    "@twilio/flex-ui": "^2.0.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "scripts": {
+    "start": "flex-plugin start",
+    "build": "flex-plugin build",
+    "test": "flex-plugin test",
+    "eject": "flex-plugin eject",
+    "info": "flex-plugin info",
+    "list": "flex-plugin list",
+    "deploy": "flex-plugin deploy",
+    "release": "flex-plugin release"
+  },
+  "browserslist": [
+    "last 2 Chrome versions"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "typescript": "4.9"
+  }
+}

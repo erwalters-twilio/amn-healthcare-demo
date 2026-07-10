@@ -133,7 +133,7 @@ async function fetchSegmentProfile(phone) {
     const identifier = phone
       ? `anonymous_id:${phone}`
       : `user_id:erwalters@twilio.com`;
-    const baseUrl = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${identifier}`;
+    const baseUrl = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/${encodeURIComponent(identifier)}`;
 
     log.info('Fetching Segment profile for:', identifier);
     log.info('Base URL:', baseUrl);
