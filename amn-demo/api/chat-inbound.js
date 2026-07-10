@@ -12,10 +12,7 @@ function getTwilioClient() {
 async function fetchSegmentProfile(userIdentity) {
   if (!SEGMENT_PROFILE_TOKEN || !SEGMENT_SPACE_ID || !userIdentity) return null;
   try {
-    const identifier = userIdentity.includes('@')
-      ? `email:${userIdentity}`
-      : `phone:${userIdentity}`;
-    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/external_id:${identifier}/traits`;
+    const url = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles/user_id:${encodeURIComponent(userIdentity)}/traits`;
     const res = await fetch(url, {
       headers: {
         Authorization: `Basic ${Buffer.from(`${SEGMENT_PROFILE_TOKEN}:`).toString('base64')}`,
@@ -202,10 +199,13 @@ export default async function handler(req, res) {
 
     const { reply, extractedPreferences = {} } = parsed;
 
-    // Write extracted preferences to Segment
-    if (userIdentity && Object.keys(extractedPreferences).length > 0) {
-      await segmentIdentify(userIdentity, extractedPreferences);
-      await segmentTrack(userIdentity, 'Chat Preference Captured', {
+    // Write extracted preferences to Segment — one identify per field so each fires independently
+    const chatUserId = userIdentity || extractedPreferences.email || extractedPreferences.phone;
+    if (chatUserId && Object.keys(extractedPreferences).length > 0) {
+      for (const [key, value] of Object.entries(extractedPreferences)) {
+        await segmentIdentify(chatUserId, { [key]: value });
+      }
+      await segmentTrack(chatUserId, 'Chat Preference Captured', {
         channel: 'web_chat',
         conversation_sid: conversationSid,
         fields_captured: Object.keys(extractedPreferences),
