@@ -5,6 +5,7 @@ import { ProfileSection } from './ProfileSection';
 import { ApplicationContext } from './ApplicationContext';
 import { MemoryInsights } from './MemoryInsights';
 import { ConversationView } from './ConversationView';
+import { EventsTimeline } from './EventsTimeline';
 
 interface CandidatePanelProps {
   task: any;
@@ -62,17 +63,9 @@ export function CandidatePanel({ task }: CandidatePanelProps) {
 
   return (
     <div style={containerStyle}>
-      <div style={amnBannerStyle}>
-        <img
-          src={`${process.env.FLEX_APP_PUBLIC_URL || ''}/amn-logo.png`}
-          alt="AMN Healthcare"
-          style={{ height: 28 }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
-        <span style={amnBannerText}>Candidate Profile</span>
-      </div>
       <ProfileSection profile={data.profile} />
       <ApplicationContext applicationContext={data.applicationContext} />
+      <EventsTimeline events={data.events || []} />
       <MemoryInsights memoryProfile={data.memoryProfile} />
       <ConversationView conversations={data.conversations} />
     </div>
@@ -85,23 +78,6 @@ const containerStyle: React.CSSProperties = {
   height: '100%',
   background: '#f8fafc',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-};
-
-const amnBannerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: '10px 16px',
-  background: '#003B5C',
-  borderRadius: 10,
-  marginBottom: 12,
-};
-
-const amnBannerText: React.CSSProperties = {
-  color: '#fff',
-  fontWeight: 700,
-  fontSize: 14,
-  letterSpacing: '0.02em',
 };
 
 const messageStyle: React.CSSProperties = {

@@ -598,14 +598,28 @@ async function handleConversationRelay(ws, initialCallSid) {
                 log.info('[FIELD] token captured:', fieldKey, '=', fieldValue);
                 if (userId) {
                   await segmentIdentify(userId, { [fieldKey]: fieldValue });
-                  await trackSegmentEvent(userId, 'Profile Field Collected', {
-                    field_name: fieldKey,
-                    field_value: fieldValue,
-                    phone,
-                    call_sid: callSid,
-                    channel: 'ai_voice',
-                  });
-                  log.info('Segment identify + track sent:', fieldKey, '=', fieldValue);
+                  log.info('Segment identify sent (token):', fieldKey, '=', fieldValue);
+                }
+              }
+            }
+
+            // Backup: extract any fields the AI token missed directly from candidate speech
+            const uncollectedFields = FIELD_COLLECTION.filter(f => !collectedFieldKeys.has(f.key));
+            if (uncollectedFields.length > 0 && userId) {
+              const extracted = await Promise.all(
+                uncollectedFields.map(async f => {
+                  const val = await extractSpecificField(f.key, f.instruction, userMessage);
+                  return val ? { key: f.key, value: val } : null;
+                })
+              );
+              for (const result of extracted.filter(Boolean)) {
+                if (!collectedFieldKeys.has(result.key)) {
+                  collectedFieldKeys.add(result.key);
+                  log.info('[FIELD] backup extraction:', result.key, '=', result.value);
+                  if (userId) {
+                    await segmentIdentify(userId, { [result.key]: result.value });
+                    log.info('Segment identify sent (backup):', result.key, '=', result.value);
+                  }
                 }
               }
             }
@@ -625,8 +639,6 @@ async function handleConversationRelay(ws, initialCallSid) {
                 content: cleanResponse,
               });
 
-              // Track Segment event
-              const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
               if (userId) {
                 await trackSegmentEvent(
                   userId,

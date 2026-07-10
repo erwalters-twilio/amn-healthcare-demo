@@ -1,0 +1,12 @@
+{
+  "name": "amn-flex-setup",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "setup": "node setup.js"
+  },
+  "dependencies": {
+    "twilio": "^5.4.4",
+    "dotenv": "^16.4.5"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "amn-candidate-plugin",
   "description": "AMN Healthcare candidate profile panel for Twilio Flex",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "private": true,
   "dependencies": {
     "@twilio/flex-plugin-scripts": "7.1.2",

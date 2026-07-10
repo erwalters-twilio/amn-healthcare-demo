@@ -1,0 +1,25 @@
+{
+  "name": "amn-recruiter-dashboard-server",
+  "version": "1.0.0",
+  "description": "Backend server for AMN Healthcare Recruiter Dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "twilio": "^5.4.4",
+    "@segment/analytics-node": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsx": "^4.7.1",
+    "@types/express": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.15.19"
+  }
+}

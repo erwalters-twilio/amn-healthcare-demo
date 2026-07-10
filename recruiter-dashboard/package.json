@@ -1,0 +1,28 @@
+{
+  "name": "amn-recruiter-dashboard",
+  "version": "1.0.0",
+  "description": "AMN Healthcare Recruiter Dashboard - Full Stack Application",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "npm run dev --prefix server",
+    "build": "npm run build --prefix dashboard && npm run build --prefix server",
+    "start": "npm run start --prefix server"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "twilio": "^5.4.4",
+    "@segment/analytics-node": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/express": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.15.19",
+    "@vercel/node": "^3.2.29"
+  }
+}

@@ -34,9 +34,9 @@ export default async function handler(req, res) {
     return { traits: d.traits || {} };
   }
 
-  // Fetch all events — always via anonymous_id
+  // Fetch all events — always via anonymous_id (Segment max limit is 100)
   async function fetchSegmentEvents(normalizedPhone) {
-    const url = segmentUrl('anonymous_id', normalizedPhone, 'events?limit=200');
+    const url = segmentUrl('anonymous_id', normalizedPhone, 'events?limit=100');
     const r = await fetch(url, { headers: { Authorization: segmentAuth } });
     if (!r.ok) return [];
     const d = await r.json();
@@ -49,60 +49,46 @@ export default async function handler(req, res) {
 
   async function fetchMemoryProfile(normalizedPhone) {
     if (!MEMORY_STORE_ID) return null;
-    // List all profile SIDs first
-    const listR = await fetch(
-      `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles`,
-      { headers: { Authorization: twilioAuth } }
-    );
-    if (!listR.ok) return null;
-    const { profiles = [] } = await listR.json();
-    if (!profiles.length) return null;
 
-    // Fetch all profiles in parallel instead of serially to avoid timeout
-    const profileResults = await Promise.all(
-      profiles.map(profileId =>
-        fetch(`https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}`, {
-          headers: { Authorization: twilioAuth },
-        })
-          .then(r => (r.ok ? r.json() : null))
-          .catch(() => null)
-      )
-    );
-
-    // Find the one whose phone matches
-    for (let i = 0; i < profileResults.length; i++) {
-      const pData = profileResults[i];
-      if (!pData) continue;
-      const profilePhone = pData.traits?.Contact?.phone || pData.traits?.phone || '';
-      if (normalizePhone(profilePhone) === normalizedPhone) {
-        const profileId = profiles[i];
-        const recallR = await fetch(
-          `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}/Recall`,
-          {
-            method: 'POST',
-            headers: { Authorization: twilioAuth, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ observationsLimit: 50, summariesLimit: 20 }),
-          }
-        );
-        if (!recallR.ok) return { profileId, observations: [], summaries: [] };
-        const rd = await recallR.json();
-        return {
-          profileId,
-          observations: (rd.observations || []).map(o => ({
-            observationId: o.id,
-            content: o.content,
-            timestamp: o.createdAt || o.occurredAt,
-            conversationIds: o.conversationIds || [],
-          })),
-          summaries: (rd.summaries || []).map(s => ({
-            summaryId: s.id,
-            content: s.content,
-            timestamp: s.createdAt || s.updatedAt,
-          })),
-        };
+    // Lookup profile by phone identifier — direct lookup, no list-all needed
+    const lookupR = await fetch(
+      `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/Lookup`,
+      {
+        method: 'POST',
+        headers: { Authorization: twilioAuth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idType: 'phone', value: normalizedPhone }),
       }
-    }
-    return null;
+    );
+    if (!lookupR.ok) return null;
+    const { profiles = [] } = await lookupR.json();
+    if (!profiles.length) return null;
+    const profileId = profiles[0];
+
+    // Recall observations and summaries for this profile
+    const recallR = await fetch(
+      `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}/Recall`,
+      {
+        method: 'POST',
+        headers: { Authorization: twilioAuth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ observationsLimit: 20, summariesLimit: 10 }),
+      }
+    );
+    if (!recallR.ok) return { profileId, observations: [], summaries: [] };
+    const rd = await recallR.json();
+    return {
+      profileId,
+      observations: (rd.observations || []).map(o => ({
+        observationId: o.id,
+        content: o.content,
+        timestamp: o.createdAt || o.occurredAt,
+        conversationIds: o.conversationIds || [],
+      })),
+      summaries: (rd.summaries || []).map(s => ({
+        summaryId: s.id,
+        content: s.content,
+        timestamp: s.createdAt || s.updatedAt,
+      })),
+    };
   }
 
   async function fetchConversationsByPhone(normalizedPhone) {

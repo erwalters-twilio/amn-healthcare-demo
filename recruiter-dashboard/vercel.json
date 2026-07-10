@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "buildCommand": "npm install && cd server && npm install && npm run build && cd ../dashboard && npm install && npm run build",
+  "outputDirectory": "dashboard/dist",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/api/search",
+      "destination": "/api/search"
+    },
+    {
+      "source": "/api/candidates/current",
+      "destination": "/api/candidates/current"
+    },
+    {
+      "source": "/api/candidates/:identifier",
+      "destination": "/api/candidates/[identifier]"
+    },
+    {
+      "source": "/webhooks/segment",
+      "destination": "/api/webhooks/segment"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
