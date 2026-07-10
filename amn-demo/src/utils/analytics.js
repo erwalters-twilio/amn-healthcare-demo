@@ -131,6 +131,25 @@ export const trackAbandonment = (formData) => {
 
 export const getAnalytics = () => analytics;
 
+export const USER_IDENTITY_KEY = 'amn_chat_user_identity';
+
+export const signIn = (email) => {
+  localStorage.setItem(USER_IDENTITY_KEY, email);
+
+  if (analytics) {
+    analytics.identify(email);
+  }
+
+  window.dispatchEvent(new Event('amn:auth-change'));
+  return email;
+};
+
+export const signOut = () => {
+  localStorage.removeItem(USER_IDENTITY_KEY);
+  localStorage.removeItem('amn_chat_conversation_sid');
+  window.dispatchEvent(new Event('amn:auth-change'));
+};
+
 export const trackIdentify = (formData) => {
   if (!analytics) {
     console.log('[Analytics Debug] Identify:', formData);

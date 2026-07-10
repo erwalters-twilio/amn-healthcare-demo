@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
-import { trackClick } from '../utils/analytics';
+import { useState, useEffect } from 'react';
+import { trackClick, signOut, USER_IDENTITY_KEY } from '../utils/analytics';
 import './Header.css';
 
 export default function Header() {
   const [showJobSeekersMenu, setShowJobSeekersMenu] = useState(false);
+  const [signedInPhone, setSignedInPhone] = useState(() => localStorage.getItem(USER_IDENTITY_KEY));
+
+  useEffect(() => {
+    const sync = () => setSignedInPhone(localStorage.getItem(USER_IDENTITY_KEY));
+    window.addEventListener('amn:auth-change', sync);
+    return () => window.removeEventListener('amn:auth-change', sync);
+  }, []);
 
   const handleNavClick = (text, destination) => {
     trackClick(text, destination, window.location.pathname);
@@ -25,13 +32,28 @@ export default function Header() {
             >
               Search Jobs
             </Link>
-            <Link
-              to="/apply"
-              className="header-btn"
-              onClick={() => handleNavClick('Apply Now (header)', '/apply')}
-            >
-              Apply Now
-            </Link>
+            {signedInPhone ? (
+              <div className="header-user">
+                <span className="header-user-phone">
+                  <span className="header-user-dot" />
+                  {signedInPhone}
+                </span>
+                <button
+                  className="header-signout"
+                  onClick={() => signOut()}
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/signin"
+                className="header-btn"
+                onClick={() => handleNavClick('Sign In (header)', '/signin')}
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </div>

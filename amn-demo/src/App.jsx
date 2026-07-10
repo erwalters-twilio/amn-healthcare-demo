@@ -3,12 +3,14 @@ import { useEffect } from 'react';
 import { trackPage } from './utils/analytics';
 import Header from './components/Header';
 import ResetButton from './components/ResetButton';
+import ChatWidget from './components/ChatWidget';
 import HomePage from './pages/HomePage';
 import JobSearchPage from './pages/JobSearchPage';
 import JobDetailPage from './pages/JobDetailPage';
 import ApplyLandingPage from './pages/ApplyLandingPage';
 import ApplicationFormPage from './pages/ApplicationFormPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
+import SignInPage from './pages/SignInPage';
 
 function PageTracker() {
   const location = useLocation();
@@ -42,8 +44,10 @@ function App() {
         <Route path="/apply" element={<ApplyLandingPage />} />
         <Route path="/application" element={<ApplicationFormPage />} />
         <Route path="/documents" element={<DocumentUploadPage />} />
+        <Route path="/signin" element={<SignInPage />} />
       </Routes>
       <ResetButton />
+      <ChatWidget />
     </Router>
   );
 }
