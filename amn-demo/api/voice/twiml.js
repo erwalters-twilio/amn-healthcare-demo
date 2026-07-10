@@ -24,6 +24,7 @@ export default async function handler(req, res) {
 
     // WebSocket URL for ConversationRelay server
     const AI_WEBSOCKET_URL = process.env.AI_WEBSOCKET_URL;
+    const FLEX_WORKFLOW_SID = process.env.FLEX_WORKFLOW_SID;
 
     if (!AI_WEBSOCKET_URL) {
       throw new Error('AI_WEBSOCKET_URL environment variable not set');
@@ -32,6 +33,18 @@ export default async function handler(req, res) {
     // Generate TwiML with ConversationRelay
     // Note: Remove wss:// prefix - Twilio adds it automatically
     const wsUrl = AI_WEBSOCKET_URL.replace('wss://', '').replace('ws://', '');
+
+    // When ConversationRelay's WebSocket closes (on [TRANSFER]), Twilio falls through
+    // to <Enqueue> and routes the live call into the Flex TaskRouter queue.
+    const enqueueBlock = FLEX_WORKFLOW_SID
+      ? `\n  <Enqueue workflowSid="${FLEX_WORKFLOW_SID}">
+    <TaskAttributes>{"from":"${phone}","phone":"${phone}","type":"recruiter_transfer","channel":"voice"}</TaskAttributes>
+  </Enqueue>`
+      : '';
+
+    if (!FLEX_WORKFLOW_SID) {
+      console.warn('FLEX_WORKFLOW_SID not set — call will hang up after AI transfer (no Flex routing)');
+    }
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -43,7 +56,7 @@ export default async function handler(req, res) {
       <Parameter name="source" value="rcs_reply" />
       <Parameter name="timestamp" value="${new Date().toISOString()}" />
     </ConversationRelay>
-  </Connect>
+  </Connect>${enqueueBlock}
 </Response>`;
 
     console.log('TwiML generated successfully');
