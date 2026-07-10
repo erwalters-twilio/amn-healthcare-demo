@@ -93,11 +93,20 @@ You MUST respond with valid JSON only, no other text. Format:
 {
   "reply": "Your conversational response here",
   "extractedPreferences": {
+    "firstName": "candidate's first name if shared",
+    "lastName": "candidate's last name if shared",
+    "email": "candidate's email address if shared",
+    "phone": "candidate's phone number if shared",
+    "profession": "Physician|Nursing|Allied Health if mentioned",
     "specialty": "value if mentioned",
-    "location": "value if mentioned",
+    "location": "city or state if mentioned",
     "shiftType": "staff|travel|per_diem if mentioned",
     "salaryExpectation": "numeric value or range if mentioned",
-    "profession": "Physician|Nursing|Allied Health if mentioned"
+    "yearsOfExperience": "numeric value if mentioned",
+    "licenseState": "state abbreviation if mentioned",
+    "availabilityDate": "date or timeframe if mentioned",
+    "facilityType": "hospital|clinic|outpatient|other if mentioned",
+    "currentRole": "their current job title if mentioned"
   }
 }
 

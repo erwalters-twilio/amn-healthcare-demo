@@ -92,10 +92,14 @@ function ChatWidget() {
         setMessages(prev => [...prev, { role: 'assistant', text: data.reply }]);
       }
 
-      // Fire Segment track for any extracted preferences (server-side handles the identify)
+      // Send Segment identify + track for any extracted traits
       if (data.extractedPreferences && Object.keys(data.extractedPreferences).length > 0) {
         const analytics = getAnalytics();
         if (analytics) {
+          const userIdentity = localStorage.getItem(IDENTITY_KEY);
+          if (userIdentity) {
+            analytics.identify(userIdentity, data.extractedPreferences);
+          }
           analytics.track('Chat Preference Captured', {
             channel: 'web_chat',
             fields_captured: Object.keys(data.extractedPreferences),
