@@ -1,5 +1,5 @@
 // Candidate data API for Flex plugin
-// Fetches Segment profile, Twilio Memory, and Conversations by phone number
+// Looks up Segment profile by anonymous_id (phone number), Twilio Memory, and Conversations
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -19,49 +19,69 @@ export default async function handler(req, res) {
   const twilioAuth = `Basic ${Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')}`;
   const segmentBase = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}/collections/users/profiles`;
 
-  // Try anonymous_id (primary), then phone: fallback
-  async function fetchSegmentProfile(identifier) {
-    const url = `${segmentBase}/${encodeURIComponent(identifier)}/traits`;
+  // Build Segment profile URL: colon between type and value must NOT be encoded,
+  // only the value itself is encoded (e.g. the + in the phone number)
+  function segmentUrl(type, value, resource) {
+    return `${segmentBase}/${type}:${encodeURIComponent(value)}/${resource}`;
+  }
+
+  // Fetch profile traits — ONLY via anonymous_id where the value is the phone number
+  async function fetchSegmentProfile(normalizedPhone) {
+    const url = segmentUrl('anonymous_id', normalizedPhone, 'traits?limit=200');
     const r = await fetch(url, { headers: { Authorization: segmentAuth } });
     if (!r.ok) return null;
     const d = await r.json();
     return { traits: d.traits || {} };
   }
 
-  async function fetchSegmentEvents(identifier) {
-    const url = `${segmentBase}/${encodeURIComponent(identifier)}/events?limit=50`;
+  // Fetch all events — always via anonymous_id
+  async function fetchSegmentEvents(normalizedPhone) {
+    const url = segmentUrl('anonymous_id', normalizedPhone, 'events?limit=200');
     const r = await fetch(url, { headers: { Authorization: segmentAuth } });
     if (!r.ok) return [];
     const d = await r.json();
     return (d.data || d.events || []).map(e => ({
-      name: e.event, properties: e.properties || {}, timestamp: e.timestamp
+      name: e.event,
+      properties: e.properties || {},
+      timestamp: e.timestamp,
     }));
   }
 
   async function fetchMemoryProfile(normalizedPhone) {
     if (!MEMORY_STORE_ID) return null;
-    // List profiles
-    const listR = await fetch(`https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles`, {
-      headers: { Authorization: twilioAuth }
-    });
+    // List all profile SIDs first
+    const listR = await fetch(
+      `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles`,
+      { headers: { Authorization: twilioAuth } }
+    );
     if (!listR.ok) return null;
     const { profiles = [] } = await listR.json();
+    if (!profiles.length) return null;
 
-    for (const profileId of profiles) {
-      const pR = await fetch(`https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}`, {
-        headers: { Authorization: twilioAuth }
-      });
-      if (!pR.ok) continue;
-      const pData = await pR.json();
+    // Fetch all profiles in parallel instead of serially to avoid timeout
+    const profileResults = await Promise.all(
+      profiles.map(profileId =>
+        fetch(`https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}`, {
+          headers: { Authorization: twilioAuth },
+        })
+          .then(r => (r.ok ? r.json() : null))
+          .catch(() => null)
+      )
+    );
+
+    // Find the one whose phone matches
+    for (let i = 0; i < profileResults.length; i++) {
+      const pData = profileResults[i];
+      if (!pData) continue;
       const profilePhone = pData.traits?.Contact?.phone || pData.traits?.phone || '';
       if (normalizePhone(profilePhone) === normalizedPhone) {
-        // Found match — use Recall API
+        const profileId = profiles[i];
         const recallR = await fetch(
           `https://memory.twilio.com/v1/Stores/${MEMORY_STORE_ID}/Profiles/${profileId}/Recall`,
           {
             method: 'POST',
             headers: { Authorization: twilioAuth, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ observationsLimit: 20, summariesLimit: 10 })
+            body: JSON.stringify({ observationsLimit: 50, summariesLimit: 20 }),
           }
         );
         if (!recallR.ok) return { profileId, observations: [], summaries: [] };
@@ -69,14 +89,16 @@ export default async function handler(req, res) {
         return {
           profileId,
           observations: (rd.observations || []).map(o => ({
-            observationId: o.id, content: o.content,
+            observationId: o.id,
+            content: o.content,
             timestamp: o.createdAt || o.occurredAt,
-            conversationIds: o.conversationIds || []
+            conversationIds: o.conversationIds || [],
           })),
           summaries: (rd.summaries || []).map(s => ({
-            summaryId: s.id, content: s.content,
-            timestamp: s.createdAt || s.updatedAt
-          }))
+            summaryId: s.id,
+            content: s.content,
+            timestamp: s.createdAt || s.updatedAt,
+          })),
         };
       }
     }
@@ -90,51 +112,73 @@ export default async function handler(req, res) {
     const d = await r.json();
     const participantConvs = d.conversations || [];
 
-    const convs = [];
-    for (const pc of participantConvs) {
-      try {
-        const [convR, msgsR] = await Promise.all([
-          fetch(`https://conversations.twilio.com/v1/Conversations/${pc.conversation_sid}`, { headers: { Authorization: twilioAuth } }),
-          fetch(`https://conversations.twilio.com/v1/Conversations/${pc.conversation_sid}/Messages?PageSize=100&Order=asc`, { headers: { Authorization: twilioAuth } })
-        ]);
-        if (!convR.ok) continue;
-        const convData = await convR.json();
-        const msgsData = msgsR.ok ? await msgsR.json() : { messages: [] };
-        convs.push({
-          sid: convData.sid,
-          friendlyName: convData.friendly_name || `Conversation ${convData.sid.slice(-8)}`,
-          attributes: convData.attributes ? JSON.parse(convData.attributes) : {},
-          messages: (msgsData.messages || []).map(m => ({
-            sid: m.sid, author: m.author || 'unknown',
-            body: m.body || '', dateCreated: m.date_created,
-            attributes: m.attributes || '{}'
-          }))
-        });
-      } catch (_) {}
-    }
-    return convs;
+    const convs = await Promise.all(
+      participantConvs.map(async pc => {
+        try {
+          const [convR, msgsR] = await Promise.all([
+            fetch(`https://conversations.twilio.com/v1/Conversations/${pc.conversation_sid}`, {
+              headers: { Authorization: twilioAuth },
+            }),
+            fetch(
+              `https://conversations.twilio.com/v1/Conversations/${pc.conversation_sid}/Messages?PageSize=200&Order=asc`,
+              { headers: { Authorization: twilioAuth } }
+            ),
+          ]);
+          if (!convR.ok) return null;
+          const convData = await convR.json();
+          const msgsData = msgsR.ok ? await msgsR.json() : { messages: [] };
+          return {
+            sid: convData.sid,
+            friendlyName: convData.friendly_name || `Conversation ${convData.sid.slice(-8)}`,
+            attributes: convData.attributes ? JSON.parse(convData.attributes) : {},
+            messages: (msgsData.messages || []).map(m => ({
+              sid: m.sid,
+              author: m.author || 'unknown',
+              body: m.body || '',
+              dateCreated: m.date_created,
+              attributes: m.attributes || '{}',
+            })),
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    return convs.filter(Boolean);
   }
 
   async function fetchConversationsByIds(ids) {
-    const convs = [];
-    for (const id of ids) {
-      const r = await fetch(`https://intelligence.twilio.com/v3/Conversations/${id}`, {
-        headers: { Authorization: twilioAuth }
-      });
-      if (!r.ok) continue;
-      const d = await r.json();
-      const messages = (d.communications || []).map(c => {
-        const p = (d.participants || []).find(x => x.id === c.participantId);
-        return { sid: c.id, author: p?.name || p?.type || 'unknown', body: c.content?.text || '', dateCreated: c.createdAt };
-      }).filter(m => m.body);
-      convs.push({
-        sid: id,
-        friendlyName: d.name || `Conversation ${id.slice(-8)}`,
-        attributes: { status: d.status, channels: d.channels },
-        messages
-      });
-    }
-    return convs;
+    const convs = await Promise.all(
+      ids.map(async id => {
+        try {
+          const r = await fetch(`https://intelligence.twilio.com/v3/Conversations/${id}`, {
+            headers: { Authorization: twilioAuth },
+          });
+          if (!r.ok) return null;
+          const d = await r.json();
+          const messages = (d.communications || [])
+            .map(c => {
+              const p = (d.participants || []).find(x => x.id === c.participantId);
+              return {
+                sid: c.id,
+                author: p?.name || p?.type || 'unknown',
+                body: c.content?.text || '',
+                dateCreated: c.createdAt,
+              };
+            })
+            .filter(m => m.body);
+          return {
+            sid: id,
+            friendlyName: d.name || `Conversation ${id.slice(-8)}`,
+            attributes: { status: d.status, channels: d.channels },
+            messages,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    return convs.filter(Boolean);
   }
 
   function normalizePhone(p) {
@@ -148,21 +192,15 @@ export default async function handler(req, res) {
   try {
     const normalizedPhone = normalizePhone(phone);
 
-    // Fetch Segment profile — try anonymous_id first (how phone tracking works), then phone:
-    let profile = await fetchSegmentProfile(`anonymous_id:${normalizedPhone}`);
-    if (!profile) profile = await fetchSegmentProfile(`phone:${normalizedPhone}`);
-
-    const events = profile
-      ? await fetchSegmentEvents(`anonymous_id:${normalizedPhone}`)
-      : [];
-
-    // Fetch Memory and Conversations in parallel
-    const [memoryProfile, convsByPhone] = await Promise.all([
+    // All three lookups run in parallel — Segment profile+events, Memory, Conversations
+    const [profile, events, memoryProfile, convsByPhone] = await Promise.all([
+      fetchSegmentProfile(normalizedPhone),
+      fetchSegmentEvents(normalizedPhone),
       fetchMemoryProfile(normalizedPhone),
-      fetchConversationsByPhone(normalizedPhone)
+      fetchConversationsByPhone(normalizedPhone),
     ]);
 
-    // If Memory has conversation IDs, prefer those; otherwise use phone-based lookup
+    // If Memory has conversation IDs, prefer those (richer); otherwise use phone-based lookup
     let conversations = convsByPhone;
     if (memoryProfile?.observations?.length > 0) {
       const ids = [...new Set(memoryProfile.observations.flatMap(o => o.conversationIds || []))];
@@ -172,6 +210,8 @@ export default async function handler(req, res) {
       }
     }
 
+    const traits = profile?.traits || {};
+
     res.status(200).json({
       identifier: normalizedPhone,
       profile: profile || { traits: {} },
@@ -179,11 +219,11 @@ export default async function handler(req, res) {
       conversations,
       memoryProfile,
       applicationContext: {
-        job_applied: profile?.traits?.job_applied,
-        application_id: profile?.traits?.application_id,
-        abandonment_step: profile?.traits?.abandonment_step
+        job_applied: traits.job_applied,
+        application_id: traits.application_id,
+        abandonment_step: traits.abandonment_step,
       },
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Candidate API error:', error);
