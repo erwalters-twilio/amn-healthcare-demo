@@ -282,7 +282,7 @@ Examples of correct responses:
 - Candidate says "I can start in two weeks" → "Wonderful. [FIELD:availableStartDate=2 weeks]"
 
 STEP 3 — CONFIRM AND TRANSFER
-Once ALL fields are collected (after the final [FIELD:] token), say: "Perfect, I now have everything I need. Let me go ahead and connect you with one of our specialized recruiters who can walk you through the best opportunities for you. Just a moment." Then on its own line:
+Once ALL fields are collected (after the final [FIELD:] token), say exactly this (or very close to it): "Thank you so much for providing that information, ${firstName_}. I'll go ahead and transfer you to one of our recruiters now — they'll be able to walk you through the best opportunities for you. Please hold just a moment." Then on its own line:
 [TRANSFER]
 
 RULES:
@@ -587,18 +587,23 @@ async function handleConversationRelay(ws, initialCallSid) {
             log.info('AI responded:', fullResponse);
 
             // Parse [FIELD:key=value] tokens the AI emits and identify each one
-            const fieldTokenRegex = /\[FIELD:(\w+)=([^\]]+)\]/g;
+            const fieldTokenRegex = /\[FIELD:\s*(\w+)\s*=\s*([^\]]+)\]/g;
             let fieldMatch;
             const userId = userProfile?.traits?.email || SEGMENT_USER_ID || phone;
+            if (!userId) {
+              log.error('[CRITICAL] userId is null — identifies cannot fire. phone:', phone, 'SEGMENT_USER_ID set:', !!SEGMENT_USER_ID);
+            }
             while ((fieldMatch = fieldTokenRegex.exec(fullResponse)) !== null) {
-              const fieldKey = fieldMatch[1];
+              const fieldKey = fieldMatch[1].trim();
               const fieldValue = fieldMatch[2].trim();
-              if (fieldKey && fieldValue && !collectedFieldKeys.has(fieldKey)) {
+              if (fieldKey && fieldValue) {
                 collectedFieldKeys.add(fieldKey);
                 log.info('[FIELD] token captured:', fieldKey, '=', fieldValue);
                 if (userId) {
                   await segmentIdentify(userId, { [fieldKey]: fieldValue });
                   log.info('Segment identify sent (token):', fieldKey, '=', fieldValue);
+                } else {
+                  log.error('[FIELD] identify skipped — userId null. field:', fieldKey, '=', fieldValue);
                 }
               }
             }
@@ -653,6 +658,9 @@ async function handleConversationRelay(ws, initialCallSid) {
                   }
                 );
               }
+
+              // Wait for TTS to finish speaking the transfer message before redirecting
+              await new Promise(resolve => setTimeout(resolve, 7000));
 
               // Redirect the live call to Flex via Twilio REST API (most reliable)
               const redirected = await redirectCallToFlex(callSid, phone);
