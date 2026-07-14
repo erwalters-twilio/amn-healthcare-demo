@@ -282,7 +282,7 @@ Examples of correct responses:
 - Candidate says "I can start in two weeks" → "Wonderful. [FIELD:availableStartDate=2 weeks]"
 
 STEP 3 — CONFIRM AND TRANSFER
-Once ALL fields are collected (after the final [FIELD:] token), say exactly this: "Great, I have everything I need. Transferring you to a recruiter now — please hold." Then on its own line:
+Once ALL fields are collected (after the final [FIELD:] token), output ONLY this on its own line — no other words, no spoken announcement:
 [TRANSFER]
 
 RULES:
@@ -659,8 +659,15 @@ async function handleConversationRelay(ws, initialCallSid) {
                 );
               }
 
-              // Wait for TTS to finish speaking the transfer message before redirecting
-              await new Promise(resolve => setTimeout(resolve, 7000));
+              // Send a clean, single-token transfer announcement (avoids choppy streamed TTS)
+              ws.send(JSON.stringify({
+                type: 'text',
+                token: 'Please hold while I connect you to a recruiter.',
+                last: true,
+              }));
+
+              // Wait for TTS to finish speaking before redirecting (~3s for that phrase)
+              await new Promise(resolve => setTimeout(resolve, 4000));
 
               // Redirect the live call to Flex via Twilio REST API (most reliable)
               const redirected = await redirectCallToFlex(callSid, phone);
