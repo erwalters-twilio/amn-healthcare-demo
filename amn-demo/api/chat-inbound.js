@@ -69,22 +69,72 @@ NURSING ROLES:
 `;
 
 function buildChatSystemPrompt(profileTraits) {
-  const profile = profileTraits
-    ? `Known profile:\n${Object.entries(profileTraits).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
-    : 'No existing profile — candidate is new or anonymous.';
+  const t = profileTraits || {};
+  const {
+    firstName,
+    lastName,
+    profession,
+    specialty,
+    licenseState,
+    shiftPreference,
+    shiftType,
+    zipCode,
+    city,
+    discipline,
+    yearsOfExperience,
+  } = t;
 
-  return `You are a helpful AMN Healthcare recruitment assistant on the website. Your job is to help candidates find the right healthcare role and collect their preferences so a recruiter can follow up effectively.
+  // Build a rich persona block so the AI treats this as a known candidate
+  const knownFacts = [];
+  if (firstName) knownFacts.push(`Name: ${firstName}${lastName ? ' ' + lastName : ''}`);
+  if (profession) knownFacts.push(`Profession: ${profession}`);
+  if (specialty) knownFacts.push(`Specialty: ${specialty}`);
+  if (discipline && discipline !== specialty) knownFacts.push(`Discipline: ${discipline}`);
+  if (licenseState) knownFacts.push(`Licensed in: ${licenseState}`);
+  if (shiftPreference) knownFacts.push(`Shift preference: ${shiftPreference}`);
+  if (shiftType) knownFacts.push(`Employment type: ${shiftType}`);
+  if (zipCode || city) knownFacts.push(`Location: ${[city, zipCode].filter(Boolean).join(', ')}`);
+  if (yearsOfExperience) knownFacts.push(`Years of experience: ${yearsOfExperience}`);
 
-${profile}
+  const profileBlock = knownFacts.length > 0
+    ? `You already know the following about this candidate — use it to make every response personal and relevant:\n${knownFacts.map(f => `- ${f}`).join('\n')}`
+    : 'This candidate is new — no profile on file yet.';
+
+  // Build personalization guidance based on what we know
+  const personalizationGuide = [];
+  if (firstName) personalizationGuide.push(`Address them as ${firstName} naturally (not in every message, just occasionally).`);
+  if (profession || specialty) {
+    const role = [specialty, profession].filter(Boolean).join(' / ');
+    personalizationGuide.push(`They are a ${role} — lead with roles that match this background, not generic listings.`);
+  }
+  if (licenseState) personalizationGuide.push(`They hold a license in ${licenseState} — prioritize positions in or near that state.`);
+  if (shiftPreference || shiftType) {
+    const shift = [shiftPreference, shiftType].filter(Boolean).join(', ');
+    personalizationGuide.push(`They prefer ${shift} work — filter suggestions accordingly and don't suggest incompatible shift types.`);
+  }
+  if (zipCode || city) {
+    personalizationGuide.push(`They are based near ${[city, zipCode].filter(Boolean).join(', ')} — acknowledge their region when relevant.`);
+  }
+
+  const personalizationBlock = personalizationGuide.length > 0
+    ? `Personalization rules:\n${personalizationGuide.map(g => `- ${g}`).join('\n')}`
+    : '';
+
+  return `You are a helpful AMN Healthcare recruitment assistant on the website. Your job is to help candidates find the right healthcare role and connect them with a recruiter.
+
+${profileBlock}
+
+${personalizationBlock}
 
 ${JOB_LIST}
 
 Your approach:
-1. Understand what the candidate is looking for (profession, specialty, location, shift type, salary)
-2. Suggest matching roles from the job list naturally — don't just list everything
-3. Ask clarifying questions one at a time if needed
+1. Use what you already know — never ask for information already in the profile above
+2. Suggest roles that match their profession, specialty, shift preference, and location naturally
+3. Ask one clarifying question at a time only when genuinely needed
 4. Be warm, conversational, and concise (2-4 sentences per response)
-5. Do not mention you are an AI
+5. Reference specific details from their profile to make responses feel tailored, not generic
+6. Do not mention you are an AI or that you have a profile on file
 
 You MUST respond with valid JSON only, no other text. Format:
 {
